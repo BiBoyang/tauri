@@ -1,22 +1,23 @@
 <script>
+  import { onDestroy } from 'svelte'
   import {
-    getCurrent,
     LogicalSize,
     UserAttentionType,
     PhysicalSize,
     PhysicalPosition,
     Effect,
     EffectState,
-    ProgressBarStatus,
-    Window
+    ProgressBarStatus
   } from '@tauri-apps/api/window'
-  import { invoke } from '@tauri-apps/api/primitives'
+  import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
-  const appWindow = getCurrent()
+  export let onMessage
 
-  let selectedWindow = appWindow.label
-  const windowMap = {
-    [appWindow.label]: appWindow
+  const webview = WebviewWindow.getCurrent()
+
+  let selectedWebview = webview.label
+  const webviewMap = {
+    [webview.label]: webview
   }
 
   const cursorIconOptions = [
@@ -80,14 +81,14 @@
     (state) => EffectState[state]
   )
 
-  const progressBarStatusOptions = Object.keys(ProgressBarStatus).map(s => ProgressBarStatus[s])
+  const progressBarStatusOptions = Object.keys(ProgressBarStatus).map(
+    (s) => ProgressBarStatus[s]
+  )
 
-  export let onMessage
   const mainEl = document.querySelector('main')
 
-  let newWindowLabel
+  let newWebviewLabel
 
-  let urlValue = 'https://tauri.app'
   let resizable = true
   let maximizable = true
   let minimizable = true
@@ -96,7 +97,7 @@
   let decorations = true
   let alwaysOnTop = false
   let alwaysOnBottom = false
-  let contentProtected = true
+  let contentProtected = false
   let fullscreen = false
   let width = null
   let height = null
@@ -117,9 +118,13 @@
   let cursorVisible = true
   let cursorX = null
   let cursorY = null
+  /** @type {import('@tauri-apps/api/window').CursorIcon} */
   let cursorIcon = 'default'
   let cursorIgnoreEvents = false
   let windowTitle = 'Awesome Tauri Example!'
+
+  /** @type {import('@tauri-apps/api/window').Theme | 'auto'} */
+  let theme = 'auto'
 
   let effects = []
   let selectedEffect
@@ -127,55 +132,86 @@
   let effectRadius
   let effectR, effectG, effectB, effectA
 
-  let selectedProgressBarStatus = 'none'
+  /** @type {ProgressBarStatus} */
+  let selectedProgressBarStatus = ProgressBarStatus.None
   let progress = 0
 
   let windowIconPath
 
-  function setTitle_() {
-    windowMap[selectedWindow].setTitle(windowTitle)
+  function setTitle() {
+    webviewMap[selectedWebview].setTitle(windowTitle)
   }
 
-  function hide_() {
-    windowMap[selectedWindow].hide()
-    setTimeout(windowMap[selectedWindow].show, 2000)
+  async function hide() {
+    let visible = await webviewMap[selectedWebview].isVisible()
+    onMessage('window is ' + (visible ? 'visible' : 'invisible'))
+    await webviewMap[selectedWebview].hide()
+
+    setTimeout(async () => {
+      visible = await webviewMap[selectedWebview].isVisible()
+      onMessage('window is ' + (visible ? 'visible' : 'invisible'))
+
+      await webviewMap[selectedWebview].show()
+      visible = await webviewMap[selectedWebview].isVisible()
+      onMessage('window is ' + (visible ? 'visible' : 'invisible'))
+    }, 2000)
   }
 
-  function minimize_() {
-    windowMap[selectedWindow].minimize()
-    setTimeout(windowMap[selectedWindow].unminimize, 2000)
+  async function disable() {
+    let enabled = await webviewMap[selectedWebview].isEnabled()
+    onMessage('window is ' + (enabled ? 'enabled' : 'disabled'))
+
+    await webviewMap[selectedWebview].setEnabled(false)
+
+    setTimeout(async () => {
+      enabled = await webviewMap[selectedWebview].isEnabled()
+      onMessage('window is ' + (enabled ? 'enabled' : 'disabled'))
+
+      await webviewMap[selectedWebview].setEnabled(true)
+      enabled = await webviewMap[selectedWebview].isEnabled()
+      onMessage('window is ' + (enabled ? 'enabled' : 'disabled'))
+    }, 2000)
+  }
+
+  function minimize() {
+    webviewMap[selectedWebview].minimize()
+    setTimeout(webviewMap[selectedWebview].unminimize, 2000)
   }
 
   function changeIcon() {
-    windowMap[selectedWindow].setIcon(path)
+    webviewMap[selectedWebview].setIcon(windowIconPath)
   }
 
-  function createWindow() {
-    if (!newWindowLabel) return
+  function createWebviewWindow() {
+    if (!newWebviewLabel) return
 
-    const webview = new Window(newWindowLabel)
-    windowMap[newWindowLabel] = webview
-    webview.once('tauri://error', function () {
-      onMessage('Error creating new webview')
+    const label = `main-${newWebviewLabel}`
+    const webview = new WebviewWindow(label)
+    webviewMap[label] = webview
+    webview.once('tauri://error', function (e) {
+      onMessage('Error creating new webview ' + JSON.stringify(e))
+    })
+    webview.once('tauri://created', function () {
+      onMessage('webview created')
     })
   }
 
   function loadWindowSize() {
-    windowMap[selectedWindow].innerSize().then((response) => {
+    webviewMap[selectedWebview].innerSize().then((response) => {
       innerSize = response
       width = innerSize.width
       height = innerSize.height
     })
-    windowMap[selectedWindow].outerSize().then((response) => {
+    webviewMap[selectedWebview].outerSize().then((response) => {
       outerSize = response
     })
   }
 
   function loadWindowPosition() {
-    windowMap[selectedWindow].innerPosition().then((response) => {
+    webviewMap[selectedWebview].innerPosition().then((response) => {
       innerPosition = response
     })
-    windowMap[selectedWindow].outerPosition().then((response) => {
+    webviewMap[selectedWebview].outerPosition().then((response) => {
       outerPosition = response
       x = outerPosition.x
       y = outerPosition.y
@@ -184,23 +220,41 @@
 
   async function addWindowEventListeners(window) {
     if (!window) return
-    if (resizeEventUnlisten) {
-      resizeEventUnlisten()
-    }
-    if (moveEventUnlisten) {
-      moveEventUnlisten()
-    }
+    resizeEventUnlisten?.()
+    moveEventUnlisten?.()
     moveEventUnlisten = await window.listen('tauri://move', loadWindowPosition)
     resizeEventUnlisten = await window.listen('tauri://resize', loadWindowSize)
   }
 
-  async function requestUserAttention_() {
-    await windowMap[selectedWindow].minimize()
-    await windowMap[selectedWindow].requestUserAttention(
+  async function requestUserAttention() {
+    await webviewMap[selectedWebview].minimize()
+    await webviewMap[selectedWebview].requestUserAttention(
       UserAttentionType.Critical
     )
     await new Promise((resolve) => setTimeout(resolve, 3000))
-    await windowMap[selectedWindow].requestUserAttention(null)
+    await webviewMap[selectedWebview].requestUserAttention(null)
+  }
+
+  async function switchTheme() {
+    switch (theme) {
+      case 'dark':
+        theme = 'light'
+        break
+      case 'light':
+        theme = 'auto'
+        break
+      case 'auto':
+        theme = 'dark'
+        break
+    }
+    await webviewMap[selectedWebview].setTheme(theme === 'auto' ? null : theme)
+  }
+
+  async function updateProgressBar() {
+    webviewMap[selectedWebview]?.setProgressBar({
+      status: selectedProgressBarStatus,
+      progress
+    })
   }
 
   async function addEffect() {
@@ -224,332 +278,381 @@
 
     mainEl.classList.remove('bg-primary')
     mainEl.classList.remove('dark:bg-darkPrimary')
-    await windowMap[selectedWindow].clearEffects()
-    await windowMap[selectedWindow].setEffects(payload)
+    await webviewMap[selectedWebview].clearEffects()
+    await webviewMap[selectedWebview].setEffects(payload)
   }
 
   async function clearEffects() {
     effects = []
-    await windowMap[selectedWindow].clearEffects()
+    await webviewMap[selectedWebview].clearEffects()
     mainEl.classList.add('bg-primary')
     mainEl.classList.add('dark:bg-darkPrimary')
   }
 
+  async function updatePosition() {
+    webviewMap[selectedWebview]?.setPosition(new PhysicalPosition(x, y))
+  }
+
+  async function updateSize() {
+    webviewMap[selectedWebview]?.setSize(new PhysicalSize(width, height))
+  }
+
   $: {
-    windowMap[selectedWindow]
+    webviewMap[selectedWebview]
     loadWindowPosition()
     loadWindowSize()
   }
-  $: windowMap[selectedWindow]?.setResizable(resizable)
-  $: windowMap[selectedWindow]?.setMaximizable(maximizable)
-  $: windowMap[selectedWindow]?.setMinimizable(minimizable)
-  $: windowMap[selectedWindow]?.setClosable(closable)
+  $: webviewMap[selectedWebview]?.setResizable(resizable)
+  $: webviewMap[selectedWebview]?.setMaximizable(maximizable)
+  $: webviewMap[selectedWebview]?.setMinimizable(minimizable)
+  $: webviewMap[selectedWebview]?.setClosable(closable)
   $: maximized
-    ? windowMap[selectedWindow]?.maximize()
-    : windowMap[selectedWindow]?.unmaximize()
-  $: windowMap[selectedWindow]?.setDecorations(decorations)
-  $: windowMap[selectedWindow]?.setAlwaysOnTop(alwaysOnTop)
-  $: windowMap[selectedWindow]?.setAlwaysOnBottom(alwaysOnBottom)
-  $: windowMap[selectedWindow]?.setContentProtected(contentProtected)
-  $: windowMap[selectedWindow]?.setFullscreen(fullscreen)
+    ? webviewMap[selectedWebview]?.maximize()
+    : webviewMap[selectedWebview]?.unmaximize()
+  $: webviewMap[selectedWebview]?.setDecorations(decorations)
+  $: webviewMap[selectedWebview]?.setAlwaysOnTop(alwaysOnTop)
+  $: webviewMap[selectedWebview]?.setAlwaysOnBottom(alwaysOnBottom)
+  $: webviewMap[selectedWebview]?.setContentProtected(contentProtected)
+  $: webviewMap[selectedWebview]?.setFullscreen(fullscreen)
 
-  $: width &&
-    height &&
-    windowMap[selectedWindow]?.setSize(new PhysicalSize(width, height))
   $: minWidth && minHeight
-    ? windowMap[selectedWindow]?.setMinSize(
+    ? webviewMap[selectedWebview]?.setMinSize(
         new LogicalSize(minWidth, minHeight)
       )
-    : windowMap[selectedWindow]?.setMinSize(null)
+    : webviewMap[selectedWebview]?.setMinSize(null)
   $: maxWidth > 800 && maxHeight > 400
-    ? windowMap[selectedWindow]?.setMaxSize(
+    ? webviewMap[selectedWebview]?.setMaxSize(
         new LogicalSize(maxWidth, maxHeight)
       )
-    : windowMap[selectedWindow]?.setMaxSize(null)
-  $: x !== null &&
-    y !== null &&
-    windowMap[selectedWindow]?.setPosition(new PhysicalPosition(x, y))
-  $: windowMap[selectedWindow]
+    : webviewMap[selectedWebview]?.setMaxSize(null)
+  $: webviewMap[selectedWebview]
     ?.scaleFactor()
     .then((factor) => (scaleFactor = factor))
-  $: addWindowEventListeners(windowMap[selectedWindow])
+  $: addWindowEventListeners(webviewMap[selectedWebview])
 
-  $: windowMap[selectedWindow]?.setCursorGrab(cursorGrab)
-  $: windowMap[selectedWindow]?.setCursorVisible(cursorVisible)
-  $: windowMap[selectedWindow]?.setCursorIcon(cursorIcon)
+  $: webviewMap[selectedWebview]?.setCursorGrab(cursorGrab)
+  $: webviewMap[selectedWebview]?.setCursorVisible(cursorVisible)
+  $: webviewMap[selectedWebview]?.setCursorIcon(cursorIcon)
   $: cursorX !== null &&
     cursorY !== null &&
-    windowMap[selectedWindow]?.setCursorPosition(
+    webviewMap[selectedWebview]?.setCursorPosition(
       new PhysicalPosition(cursorX, cursorY)
     )
-  $: windowMap[selectedWindow]?.setIgnoreCursorEvents(cursorIgnoreEvents)
-  $: windowMap[selectedWindow]?.setProgressBar({ status: selectedProgressBarStatus, progress })
+  $: webviewMap[selectedWebview]?.setIgnoreCursorEvents(cursorIgnoreEvents)
+
+  onDestroy(() => {
+    resizeEventUnlisten?.()
+    moveEventUnlisten?.()
+  })
 </script>
 
-<div class="flex flex-col children:grow gap-2">
-  <div class="flex gap-1">
-    <input
-      class="input grow"
-      type="text"
-      placeholder="New Window label.."
-      bind:value={newWindowLabel}
-    />
-    <button class="btn" on:click={createWindow}>New window</button>
-  </div>
-  <br />
-  {#if Object.keys(windowMap).length >= 1}
-    <span class="font-700 text-sm">Selected window:</span>
-    <select class="input" bind:value={selectedWindow}>
-      <option value="" disabled selected>Choose a window...</option>
-      {#each Object.keys(windowMap) as label}
-        <option value={label}>{label}</option>
-      {/each}
-    </select>
-  {/if}
-  {#if windowMap[selectedWindow]}
-    <br />
-    <div class="flex gap-1 items-center">
-      <label> Icon path </label>
-      <form class="flex gap-1 grow" on:submit|preventDefault={setTitle_}>
-        <input class="input grow" bind:value={windowIconPath} />
-        <button class="btn" type="submit"> Change window icon </button>
+<div class="flex flex-col children:grow gap-8 mb-4">
+  <div
+    class="flex flex-wrap items-center gap-4 pb-6 border-b-solid border-b-1 border-code"
+  >
+    {#if Object.keys(webviewMap).length >= 1}
+      <div class="grid gap-1">
+        <h4 class="my-2">Selected Window</h4>
+        <select class="input" bind:value={selectedWebview}>
+          <option value="" disabled selected>Choose a window...</option>
+          {#each Object.keys(webviewMap) as label}
+            <option value={label}>{label}</option>
+          {/each}
+        </select>
+      </div>
+    {/if}
+    <div class="grid gap-1">
+      <h4 class="my-2">Create New Window</h4>
+      <form class="flex gap-2" on:submit|preventDefault={createWebviewWindow}>
+        <input
+          class="input"
+          type="text"
+          placeholder="New window label.."
+          bind:value={newWebviewLabel}
+        />
+        <button class="btn" type="submit">Create</button>
       </form>
     </div>
-    <br />
+  </div>
+  {#if webviewMap[selectedWebview]}
+    <div class="flex flex-wrap items-center gap-4">
+      <div class="grid gap-1 grow">
+        <h4 class="my-2">Change Window Icon</h4>
+        <form class="flex gap-2" on:submit|preventDefault={changeIcon}>
+          <input
+            class="input flex-1 min-w-10"
+            placeholder="Window icon path"
+            bind:value={windowIconPath}
+          />
+          <button class="btn" type="submit">Change</button>
+        </form>
+      </div>
+      <div class="grid gap-1 grow">
+        <h4 class="my-2">Set Window Title</h4>
+        <form class="flex gap-2" on:submit|preventDefault={setTitle}>
+          <input class="input flex-1 min-w-10" bind:value={windowTitle} />
+          <button class="btn" type="submit">Set</button>
+        </form>
+      </div>
+    </div>
     <div class="flex flex-wrap gap-2">
       <button
         class="btn"
         title="Unminimizes after 2 seconds"
-        on:click={() => windowMap[selectedWindow].center()}
+        on:click={() => webviewMap[selectedWebview].center()}
       >
         Center
       </button>
       <button
         class="btn"
         title="Unminimizes after 2 seconds"
-        on:click={minimize_}
+        on:click={minimize}
       >
         Minimize
       </button>
-      <button
-        class="btn"
-        title="Visible again after 2 seconds"
-        on:click={hide_}
-      >
+      <button class="btn" title="Visible again after 2 seconds" on:click={hide}>
         Hide
       </button>
       <button
         class="btn"
-        on:click={requestUserAttention_}
+        title="Enabled again after 2 seconds"
+        on:click={disable}
+      >
+        Disable
+      </button>
+      <button
+        class="btn"
+        on:click={requestUserAttention}
         title="Minimizes the window, requests attention for 3s and then resets it"
         >Request attention</button
       >
+      <button class="btn" on:click={switchTheme}>Switch Theme ({theme})</button>
     </div>
-
-    <div class="flex flex-wrap gap-2">
+    <div class="grid cols-[repeat(auto-fill,minmax(180px,1fr))]">
       <label>
-        Maximized
-        <input type="checkbox" bind:checked={maximized} />
-      </label>
-      <label>
+        <input type="checkbox" class="checkbox" bind:checked={resizable} />
         Resizable
-        <input type="checkbox" bind:checked={resizable} />
       </label>
       <label>
+        <input type="checkbox" class="checkbox" bind:checked={maximizable} />
         Maximizable
-        <input type="checkbox" bind:checked={maximizable} />
       </label>
       <label>
+        <input type="checkbox" class="checkbox" bind:checked={minimizable} />
         Minimizable
-        <input type="checkbox" bind:checked={minimizable} />
       </label>
       <label>
+        <input type="checkbox" class="checkbox" bind:checked={closable} />
         Closable
-        <input type="checkbox" bind:checked={closable} />
       </label>
       <label>
+        <input type="checkbox" class="checkbox" bind:checked={decorations} />
         Has decorations
-        <input type="checkbox" bind:checked={decorations} />
       </label>
       <label>
+        <input type="checkbox" class="checkbox" bind:checked={alwaysOnTop} />
         Always on top
-        <input type="checkbox" bind:checked={alwaysOnTop} />
       </label>
       <label>
+        <input type="checkbox" class="checkbox" bind:checked={alwaysOnBottom} />
         Always on bottom
-        <input type="checkbox" bind:checked={alwaysOnBottom} />
       </label>
       <label>
+        <input
+          type="checkbox"
+          class="checkbox"
+          bind:checked={contentProtected}
+        />
         Content protected
-        <input type="checkbox" bind:checked={contentProtected} />
       </label>
       <label>
+        <input type="checkbox" class="checkbox" bind:checked={maximized} />
+        Maximized
+      </label>
+      <label>
+        <input type="checkbox" class="checkbox" bind:checked={fullscreen} />
         Fullscreen
-        <input type="checkbox" bind:checked={fullscreen} />
       </label>
     </div>
-    <br />
-    <div class="flex flex-row gap-2 flex-wrap">
-      <div class="flex children:grow flex-col">
-        <div>
+    <div class="flex flex-wrap children:flex-basis-30 gap-2">
+      <div class="grid gap-1 children:grid">
+        <label>
           X
-          <input class="input" type="number" bind:value={x} min="0" />
-        </div>
-        <div>
+          <input
+            class="input"
+            type="number"
+            bind:value={x}
+            on:change={updatePosition}
+            min="0"
+          />
+        </label>
+        <label>
           Y
-          <input class="input" type="number" bind:value={y} min="0" />
-        </div>
+          <input
+            class="input"
+            type="number"
+            bind:value={y}
+            on:change={updatePosition}
+            min="0"
+          />
+        </label>
       </div>
-
-      <div class="flex children:grow flex-col">
-        <div>
+      <div class="grid gap-1 children:grid">
+        <label>
           Width
-          <input class="input" type="number" bind:value={width} min="400" />
-        </div>
+          <input
+            class="input"
+            type="number"
+            bind:value={width}
+            on:change={updateSize}
+            min="400"
+          />
+        </label>
         <div>
           Height
-          <input class="input" type="number" bind:value={height} min="400" />
+          <input
+            class="input"
+            type="number"
+            bind:value={height}
+            on:change={updateSize}
+            min="400"
+          />
         </div>
       </div>
-
-      <div class="flex children:grow flex-col">
-        <div>
+      <div class="grid gap-1 children:grid">
+        <label>
           Min width
           <input class="input" type="number" bind:value={minWidth} />
-        </div>
-        <div>
+        </label>
+        <label>
           Min height
           <input class="input" type="number" bind:value={minHeight} />
-        </div>
+        </label>
       </div>
-
-      <div class="flex children:grow flex-col">
-        <div>
+      <div class="grid gap-1 children:grid">
+        <label>
           Max width
           <input class="input" type="number" bind:value={maxWidth} min="800" />
-        </div>
-        <div>
+        </label>
+        <label>
           Max height
           <input class="input" type="number" bind:value={maxHeight} min="400" />
-        </div>
+        </label>
       </div>
     </div>
-    <br />
-    <div>
-      <div class="flex">
-        <div class="grow">
-          <div class="text-accent dark:text-darkAccent font-700">
-            Inner Size
-          </div>
-          <span>Width: {innerSize.width}</span>
-          <span>Height: {innerSize.height}</span>
+    <div class="grid grid-cols-2 gap-2 max-inline-2xl">
+      <div>
+        <div class="text-accent dark:text-darkAccent font-700 m-block-1">
+          Inner Size
         </div>
-        <div class="grow">
-          <div class="text-accent dark:text-darkAccent font-700">
-            Outer Size
-          </div>
-          <span>Width: {outerSize.width}</span>
-          <span>Height: {outerSize.height}</span>
-        </div>
+        <span>Width: {innerSize.width}</span>
+        <span>Height: {innerSize.height}</span>
       </div>
-      <div class="flex">
-        <div class="grow">
-          <div class="text-accent dark:text-darkAccent font-700">
-            Inner Logical Size
-          </div>
-          <span>Width: {innerSize.toLogical(scaleFactor).width}</span>
-          <span>Height: {innerSize.toLogical(scaleFactor).height}</span>
+      <div>
+        <div class="text-accent dark:text-darkAccent font-700 m-block-1">
+          Outer Size
         </div>
-        <div class="grow">
-          <div class="text-accent dark:text-darkAccent font-700">
-            Outer Logical Size
-          </div>
-          <span>Width: {outerSize.toLogical(scaleFactor).width}</span>
-          <span>Height: {outerSize.toLogical(scaleFactor).height}</span>
-        </div>
+        <span>Width: {outerSize.width}</span>
+        <span>Height: {outerSize.height}</span>
       </div>
-      <div class="flex">
-        <div class="grow">
-          <div class="text-accent dark:text-darkAccent font-700">
-            Inner Position
-          </div>
-          <span>x: {innerPosition.x}</span>
-          <span>y: {innerPosition.y}</span>
+      <div>
+        <div class="text-accent dark:text-darkAccent font-700 m-block-1">
+          Inner Logical Size
         </div>
-        <div class="grow">
-          <div class="text-accent dark:text-darkAccent font-700">
-            Outer Position
-          </div>
-          <span>x: {outerPosition.x}</span>
-          <span>y: {outerPosition.y}</span>
-        </div>
+        <span>Width: {innerSize.toLogical(scaleFactor).width.toFixed(3)}</span>
+        <span>Height: {innerSize.toLogical(scaleFactor).height.toFixed(3)}</span
+        >
       </div>
-      <div class="flex">
-        <div class="grow">
-          <div class="text-accent dark:text-darkAccent font-700">
-            Inner Logical Position
-          </div>
-          <span>x: {innerPosition.toLogical(scaleFactor).x}</span>
-          <span>y: {innerPosition.toLogical(scaleFactor).y}</span>
+      <div>
+        <div class="text-accent dark:text-darkAccent font-700 m-block-1">
+          Outer Logical Size
         </div>
-        <div class="grow">
-          <div class="text-accent dark:text-darkAccent font-700">
-            Outer Logical Position
-          </div>
-          <span>x: {outerPosition.toLogical(scaleFactor).x}</span>
-          <span>y: {outerPosition.toLogical(scaleFactor).y}</span>
+        <span>Width: {outerSize.toLogical(scaleFactor).width.toFixed(3)}</span>
+        <span>Height: {outerSize.toLogical(scaleFactor).height.toFixed(3)}</span
+        >
+      </div>
+      <div>
+        <div class="text-accent dark:text-darkAccent font-700 m-block-1">
+          Inner Position
         </div>
+        <span>x: {innerPosition.x}</span>
+        <span>y: {innerPosition.y}</span>
+      </div>
+      <div>
+        <div class="text-accent dark:text-darkAccent font-700 m-block-1">
+          Outer Position
+        </div>
+        <span>x: {outerPosition.x}</span>
+        <span>y: {outerPosition.y}</span>
+      </div>
+      <div>
+        <div class="text-accent dark:text-darkAccent font-700 m-block-1">
+          Inner Logical Position
+        </div>
+        <span>x: {innerPosition.toLogical(scaleFactor).x.toFixed(3)}</span>
+        <span>y: {innerPosition.toLogical(scaleFactor).y.toFixed(3)}</span>
+      </div>
+      <div>
+        <div class="text-accent dark:text-darkAccent font-700 m-block-1">
+          Outer Logical Position
+        </div>
+        <span>x: {outerPosition.toLogical(scaleFactor).x.toFixed(3)}</span>
+        <span>y: {outerPosition.toLogical(scaleFactor).y.toFixed(3)}</span>
       </div>
     </div>
-    <br />
-    <h4 class="mb-2">Cursor</h4>
-    <div class="flex gap-2">
-      <label>
-        <input type="checkbox" bind:checked={cursorGrab} />
-        Grab
-      </label>
-      <label>
-        <input type="checkbox" bind:checked={cursorVisible} />
-        Visible
-      </label>
-      <label>
-        <input type="checkbox" bind:checked={cursorIgnoreEvents} />
-        Ignore events
-      </label>
+    <div class="grid gap-2">
+      <h4 class="my-2">Cursor</h4>
+      <div class="flex gap-2">
+        <label>
+          <input type="checkbox" class="checkbox" bind:checked={cursorGrab} />
+          Grab
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            class="checkbox"
+            bind:checked={cursorVisible}
+          />
+          Visible
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            class="checkbox"
+            bind:checked={cursorIgnoreEvents}
+          />
+          Ignore events
+        </label>
+      </div>
+      <div class="flex gap-2">
+        <label>
+          Icon
+          <select class="input" bind:value={cursorIcon}>
+            {#each cursorIconOptions as kind}
+              <option value={kind}>{kind}</option>
+            {/each}
+          </select>
+        </label>
+        <label>
+          X position
+          <input class="input" type="number" bind:value={cursorX} />
+        </label>
+        <label>
+          Y position
+          <input class="input" type="number" bind:value={cursorY} />
+        </label>
+      </div>
     </div>
-    <div class="flex gap-2">
-      <label>
-        Icon
-        <select class="input" bind:value={cursorIcon}>
-          {#each cursorIconOptions as kind}
-            <option value={kind}>{kind}</option>
-          {/each}
-        </select>
-      </label>
-      <label>
-        X position
-        <input class="input" type="number" bind:value={cursorX} />
-      </label>
-      <label>
-        Y position
-        <input class="input" type="number" bind:value={cursorY} />
-      </label>
-    </div>
-    <br />
-    <div class="flex flex-col gap-1">
-      <form class="flex gap-1" on:submit|preventDefault={setTitle_}>
-        <input class="input grow" id="title" bind:value={windowTitle} />
-        <button class="btn" type="submit">Set title</button>
-      </form>
-    </div>
-
-    <br />
 
     <div class="flex flex-col gap-1">
       <div class="flex gap-2">
         <label>
           Progress Status
-          <select class="input" bind:value={selectedProgressBarStatus}>
+          <select
+            class="input"
+            bind:value={selectedProgressBarStatus}
+            on:change={updateProgressBar}
+          >
             {#each progressBarStatusOptions as status}
               <option value={status}>{status}</option>
             {/each}
@@ -558,14 +661,29 @@
 
         <label>
           Progress
-          <input class="input" type="number" min="0" max="100" bind:value={progress} />
+          <input
+            class="input"
+            type="number"
+            min="0"
+            max="100"
+            bind:value={progress}
+            on:change={updateProgressBar}
+          />
         </label>
       </div>
     </div>
 
     {#if isWindows || isMacOS}
-      <div class="flex flex-col gap-1">
-        <div class="flex">
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-2">
+          <div>
+            Applied effects: {effects.length ? effects.join(', ') : 'None'}
+          </div>
+
+          <button class="btn" on:click={clearEffects}>Clear</button>
+        </div>
+
+        <div class="flex gap-2">
           <label>
             Effect
             <select class="input" bind:value={selectedEffect}>
@@ -593,30 +711,26 @@
         <div class="flex">
           <label>
             Color
-            <div class="flex">
+            <div class="flex gap-2 children:flex-basis-30">
               <input
-                style="max-width: 120px;"
                 class="input"
                 type="number"
                 placeholder="R"
                 bind:value={effectR}
               />
               <input
-                style="max-width: 120px;"
                 class="input"
                 type="number"
                 placeholder="G"
                 bind:value={effectG}
               />
               <input
-                style="max-width: 120px;"
                 class="input"
                 type="number"
                 placeholder="B"
                 bind:value={effectB}
               />
               <input
-                style="max-width: 120px;"
                 class="input"
                 type="number"
                 placeholder="A"
@@ -627,19 +741,7 @@
         </div>
 
         <div class="flex">
-          <button class="btn" style="width: 80px;" on:click={addEffect}
-            >Add</button
-          >
-        </div>
-
-        <div class="flex">
-          <div>
-            Applied effects: {effects.length ? effects.join(',') : 'None'}
-          </div>
-
-          <button class="btn" style="width: 80px;" on:click={clearEffects}
-            >Clear</button
-          >
+          <button class="btn" on:click={addEffect}>Add</button>
         </div>
       </div>
     {/if}

@@ -1,4 +1,4 @@
-// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
+// Copyright 2019-2024 Tauri Programme within The Commons Conservancy
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
@@ -17,14 +17,12 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
 /// A helper class to access the sample APIs.
 pub struct Sample<R: Runtime>(AppHandle<R>);
 
-#[derive(serde::Serialize)]
-struct Event {
-  kind: &'static str,
-}
-
 impl<R: Runtime> Sample<R> {
   pub fn ping(&self, payload: PingRequest) -> crate::Result<PingResponse> {
-    let _ = payload.on_event.send(Event { kind: "ping" });
+    payload.on_event.send(Event {
+      kind: "ping".to_string(),
+      value: payload.value.clone(),
+    })?;
     Ok(PingResponse {
       value: payload.value,
     })
