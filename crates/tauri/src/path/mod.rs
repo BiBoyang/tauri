@@ -27,6 +27,17 @@ pub use android::PathResolver;
 pub use desktop::PathResolver;
 
 /// A wrapper for [`PathBuf`] that prevents path traversal.
+///
+/// # Examples
+///
+/// ```
+/// # use tauri::path::SafePathBuf;
+/// assert!(SafePathBuf::new("../secret.txt".into()).is_err());
+/// assert!(SafePathBuf::new("/home/user/stuff/../secret.txt".into()).is_err());
+///
+/// assert!(SafePathBuf::new("./file.txt".into()).is_ok());
+/// assert!(SafePathBuf::new("/home/user/secret.txt".into()).is_ok());
+/// ```
 #[derive(Clone, Debug, Serialize)]
 pub struct SafePathBuf(PathBuf);
 
@@ -83,63 +94,80 @@ impl<'de> Deserialize<'de> for SafePathBuf {
 #[non_exhaustive]
 pub enum BaseDirectory {
   /// The Audio directory.
+  /// Resolves to [`crate::path::PathResolver::audio_dir`].
   Audio = 1,
   /// The Cache directory.
-  Cache,
+  /// Resolves to [`crate::path::PathResolver::cache_dir`].
+  Cache = 2,
   /// The Config directory.
-  Config,
+  /// Resolves to [`crate::path::PathResolver::config_dir`].
+  Config = 3,
   /// The Data directory.
-  Data,
+  /// Resolves to [`crate::path::PathResolver::data_dir`].
+  Data = 4,
   /// The LocalData directory.
-  LocalData,
+  /// Resolves to [`crate::path::PathResolver::local_data_dir`].
+  LocalData = 5,
   /// The Document directory.
-  Document,
+  /// Resolves to [`crate::path::PathResolver::document_dir`].
+  Document = 6,
   /// The Download directory.
-  Download,
+  /// Resolves to [`crate::path::PathResolver::download_dir`].
+  Download = 7,
   /// The Picture directory.
-  Picture,
+  /// Resolves to [`crate::path::PathResolver::picture_dir`].
+  Picture = 8,
   /// The Public directory.
-  Public,
+  /// Resolves to [`crate::path::PathResolver::public_dir`].
+  Public = 9,
   /// The Video directory.
-  Video,
+  /// Resolves to [`crate::path::PathResolver::video_dir`].
+  Video = 10,
   /// The Resource directory.
-  Resource,
-  /// A temporary directory. Resolves to [`std::env::temp_dir`].
-  Temp,
+  /// Resolves to the resource directory of this app.
+  Resource = 11,
+  /// A temporary directory.
+  /// Resolves to [`std::env::temp_dir`].
+  Temp = 12,
   /// The default app config directory.
   /// Resolves to [`BaseDirectory::Config`]`/{bundle_identifier}`.
-  AppConfig,
+  AppConfig = 13,
   /// The default app data directory.
   /// Resolves to [`BaseDirectory::Data`]`/{bundle_identifier}`.
-  AppData,
+  AppData = 14,
   /// The default app local data directory.
   /// Resolves to [`BaseDirectory::LocalData`]`/{bundle_identifier}`.
-  AppLocalData,
+  AppLocalData = 15,
   /// The default app cache directory.
   /// Resolves to [`BaseDirectory::Cache`]`/{bundle_identifier}`.
-  AppCache,
+  AppCache = 16,
   /// The default app log directory.
   /// Resolves to [`BaseDirectory::Home`]`/Library/Logs/{bundle_identifier}` on macOS
   /// and [`BaseDirectory::Config`]`/{bundle_identifier}/logs` on linux and Windows.
-  AppLog,
-  /// The Home directory.
-  Home,
-
+  AppLog = 17,
   /// The Desktop directory.
+  /// Resolves to [`crate::path::PathResolver::desktop_dir`].
   #[cfg(not(target_os = "android"))]
-  Desktop,
+  Desktop = 18,
   /// The Executable directory.
+  /// Resolves to [`crate::path::PathResolver::executable_dir`].
   #[cfg(not(target_os = "android"))]
-  Executable,
+  Executable = 19,
   /// The Font directory.
+  /// Resolves to [`crate::path::PathResolver::font_dir`].
   #[cfg(not(target_os = "android"))]
-  Font,
+  Font = 20,
+  /// The Home directory.
+  /// Resolves to [`crate::path::PathResolver::home_dir`].
+  Home = 21,
   /// The Runtime directory.
+  /// Resolves to [`crate::path::PathResolver::runtime_dir`].
   #[cfg(not(target_os = "android"))]
-  Runtime,
+  Runtime = 22,
   /// The Template directory.
+  /// Resolves to [`crate::path::PathResolver::template_dir`].
   #[cfg(not(target_os = "android"))]
-  Template,
+  Template = 23,
 }
 
 impl BaseDirectory {

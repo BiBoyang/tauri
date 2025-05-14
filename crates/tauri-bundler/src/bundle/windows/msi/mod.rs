@@ -3,16 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use crate::bundle::{
-  common::CommandExt,
-  path_utils::{copy_file, FileOpts},
-  settings::{Arch, Settings},
-  windows::{
-    sign::try_sign,
-    util::{
-      download_and_verify, download_webview2_bootstrapper, download_webview2_offline_installer,
-      extract_zip, HashAlgorithm, WIX_OUTPUT_FOLDER_NAME, WIX_UPDATER_OUTPUT_FOLDER_NAME,
+use crate::{
+  bundle::{
+    settings::{Arch, Settings},
+    windows::{
+      sign::try_sign,
+      util::{
+        download_webview2_bootstrapper, download_webview2_offline_installer,
+        WIX_OUTPUT_FOLDER_NAME, WIX_UPDATER_OUTPUT_FOLDER_NAME,
+      },
     },
+  },
+  utils::{
+    fs_utils::copy_file,
+    http_utils::{download_and_verify, extract_zip, HashAlgorithm},
+    CommandExt,
   },
 };
 use anyhow::{bail, Context};
@@ -198,14 +203,7 @@ fn copy_icon(settings: &Settings, filename: &str, path: &Path) -> crate::Result<
 
   let icon_path = std::env::current_dir()?.join(path);
 
-  copy_file(
-    icon_path,
-    &icon_target_path,
-    &FileOpts {
-      overwrite: true,
-      ..Default::default()
-    },
-  )?;
+  copy_file(&icon_path, &icon_target_path)?;
 
   Ok(icon_target_path)
 }
@@ -474,6 +472,16 @@ pub fn build_wix_app_installer(
   }
   fs::create_dir_all(&output_path)?;
 
+  // when we're performing code signing, we'll sign some WiX DLLs, so we make a local copy
+  let wix_toolset_path = if settings.can_sign() {
+    let wix_path = output_path.join("wix");
+    crate::utils::fs_utils::copy_dir(wix_toolset_path, &wix_path)
+      .context("failed to copy wix directory")?;
+    wix_path
+  } else {
+    wix_toolset_path.to_path_buf()
+  };
+
   let mut data = BTreeMap::new();
 
   let silent_webview_install = if let WebviewInstallMode::DownloadBootstrapper { silent }
@@ -726,38 +734,26 @@ pub fn build_wix_app_installer(
     );
 
     // Create the update task XML
-    let mut skip_uac_task = Handlebars::new();
+    let skip_uac_task = Handlebars::new();
     let xml = include_str!("./update-task.xml");
-    skip_uac_task
-      .register_template_string("update.xml", xml)
-      .map_err(|e| e.to_string())
-      .expect("Failed to setup Update Task handlebars");
+    let update_content = skip_uac_task.render_template(xml, &data)?;
     let temp_xml_path = output_path.join("update.xml");
-    let update_content = skip_uac_task.render("update.xml", &data)?;
     fs::write(temp_xml_path, update_content)?;
 
     // Create the Powershell script to install the task
     let mut skip_uac_task_installer = Handlebars::new();
     skip_uac_task_installer.register_escape_fn(handlebars::no_escape);
     let xml = include_str!("./install-task.ps1");
-    skip_uac_task_installer
-      .register_template_string("install-task.ps1", xml)
-      .map_err(|e| e.to_string())
-      .expect("Failed to setup Update Task Installer handlebars");
+    let install_script_content = skip_uac_task_installer.render_template(xml, &data)?;
     let temp_ps1_path = output_path.join("install-task.ps1");
-    let install_script_content = skip_uac_task_installer.render("install-task.ps1", &data)?;
     fs::write(temp_ps1_path, install_script_content)?;
 
     // Create the Powershell script to uninstall the task
     let mut skip_uac_task_uninstaller = Handlebars::new();
     skip_uac_task_uninstaller.register_escape_fn(handlebars::no_escape);
     let xml = include_str!("./uninstall-task.ps1");
-    skip_uac_task_uninstaller
-      .register_template_string("uninstall-task.ps1", xml)
-      .map_err(|e| e.to_string())
-      .expect("Failed to setup Update Task Uninstaller handlebars");
+    let install_script_content = skip_uac_task_uninstaller.render_template(xml, &data)?;
     let temp_ps1_path = output_path.join("uninstall-task.ps1");
-    let install_script_content = skip_uac_task_uninstaller.render("uninstall-task.ps1", &data)?;
     fs::write(temp_ps1_path, install_script_content)?;
 
     data.insert("enable_elevated_update_task", to_json(true));
@@ -772,10 +768,16 @@ pub fn build_wix_app_installer(
   let extension_regex = Regex::new("\"http://schemas.microsoft.com/wix/(\\w+)\"")?;
   for fragment_path in fragment_paths {
     let fragment_path = current_dir.join(fragment_path);
-    let fragment = fs::read_to_string(&fragment_path)?;
+    let fragment_content = fs::read_to_string(&fragment_path)?;
+    let fragment_handlebars = Handlebars::new();
+    let fragment = fragment_handlebars.render_template(&fragment_content, &data)?;
     let mut extensions = Vec::new();
     for cap in extension_regex.captures_iter(&fragment) {
-      extensions.push(wix_toolset_path.join(format!("Wix{}.dll", &cap[1])));
+      let path = wix_toolset_path.join(format!("Wix{}.dll", &cap[1]));
+      if settings.can_sign() {
+        try_sign(&path, settings)?;
+      }
+      extensions.push(path);
     }
     candle_inputs.push((fragment_path, extensions));
   }
@@ -785,11 +787,18 @@ pub fn build_wix_app_installer(
   fragment_extensions.insert(wix_toolset_path.join("WixUIExtension.dll"));
   fragment_extensions.insert(wix_toolset_path.join("WixUtilExtension.dll"));
 
+  // sign default extensions
+  if settings.can_sign() {
+    for path in &fragment_extensions {
+      try_sign(path, settings)?;
+    }
+  }
+
   for (path, extensions) in candle_inputs {
     for ext in &extensions {
       fragment_extensions.insert(ext.clone());
     }
-    run_candle(settings, wix_toolset_path, &output_path, path, extensions)?;
+    run_candle(settings, &wix_toolset_path, &output_path, path, extensions)?;
   }
 
   let mut output_paths = Vec::new();
@@ -865,7 +874,7 @@ pub fn build_wix_app_installer(
     log::info!(action = "Running"; "light to produce {}", display_path(&msi_path));
 
     run_light(
-      wix_toolset_path,
+      &wix_toolset_path,
       &output_path,
       arguments,
       &(fragment_extensions.clone().into_iter().collect()),
@@ -941,12 +950,11 @@ fn get_merge_modules(settings: &Settings) -> crate::Result<Vec<MergeModule>> {
   let mut merge_modules = Vec::new();
   let regex = Regex::new(r"[^\w\d\.]")?;
   for msm in glob::glob(
-    settings
-      .project_out_directory()
-      .join("*.msm")
-      .to_string_lossy()
-      .to_string()
-      .as_str(),
+    &PathBuf::from(glob::Pattern::escape(
+      &settings.project_out_directory().to_string_lossy(),
+    ))
+    .join("*.msm")
+    .to_string_lossy(),
   )? {
     let path = msm?;
     let filename = path
@@ -981,8 +989,11 @@ fn generate_resource_data(settings: &Settings) -> crate::Result<ResourceMap> {
     if added_resources.contains(&resource_path) {
       continue;
     }
-
     added_resources.push(resource_path.clone());
+
+    if settings.can_sign() {
+      try_sign(&resource_path, settings)?;
+    }
 
     let resource_entry = ResourceFile {
       id: format!("I{}", Uuid::new_v4().as_simple()),
@@ -1053,8 +1064,13 @@ fn generate_resource_data(settings: &Settings) -> crate::Result<ResourceMap> {
 
   let mut dlls = Vec::new();
 
+  // TODO: The bundler should not include all DLLs it finds. Instead it should only include WebView2Loader.dll if present and leave the rest to the resources config.
   let out_dir = settings.project_out_directory();
-  for dll in glob::glob(out_dir.join("*.dll").to_string_lossy().to_string().as_str())? {
+  for dll in glob::glob(
+    &PathBuf::from(glob::Pattern::escape(&out_dir.to_string_lossy()))
+      .join("*.dll")
+      .to_string_lossy(),
+  )? {
     let path = dll?;
     let resource_path = dunce::simplified(&path);
     let relative_path = path
@@ -1063,6 +1079,10 @@ fn generate_resource_data(settings: &Settings) -> crate::Result<ResourceMap> {
       .to_string_lossy()
       .into_owned();
     if !added_resources.iter().any(|r| r.ends_with(&relative_path)) {
+      if settings.can_sign() {
+        try_sign(resource_path, settings)?;
+      }
+
       dlls.push(ResourceFile {
         id: format!("I{}", Uuid::new_v4().as_simple()),
         guid: Uuid::new_v4().to_string(),
@@ -1072,15 +1092,15 @@ fn generate_resource_data(settings: &Settings) -> crate::Result<ResourceMap> {
   }
 
   if !dlls.is_empty() {
-    resources.insert(
-      "".to_string(),
-      ResourceDirectory {
+    resources
+      .entry("".to_string())
+      .and_modify(|r| r.files.append(&mut dlls))
+      .or_insert(ResourceDirectory {
         path: "".to_string(),
         name: "".to_string(),
         directories: vec![],
         files: dlls,
-      },
-    );
+      });
   }
 
   Ok(resources)

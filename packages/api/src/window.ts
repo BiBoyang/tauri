@@ -20,7 +20,9 @@ import {
   LogicalPosition,
   LogicalSize,
   PhysicalPosition,
-  PhysicalSize
+  PhysicalSize,
+  Position,
+  Size
 } from './dpi'
 import type { Event, EventName, EventCallback, UnlistenFn } from './event'
 import {
@@ -49,6 +51,11 @@ export interface Monitor {
   size: PhysicalSize
   /** the Top-left corner position of the monitor relative to the larger full screen area. */
   position: PhysicalPosition
+  /** The monitor's work area. */
+  workArea: {
+    position: PhysicalPosition
+    size: PhysicalSize
+  }
   /** The scale factor that can be used to map physical pixels to logical pixels. */
   scaleFactor: number
 }
@@ -439,7 +446,7 @@ class Window {
    * @param event Event name. Must include only alphanumeric characters, `-`, `/`, `:` and `_`.
    * @param payload Event payload.
    */
-  async emit(event: string, payload?: unknown): Promise<void> {
+  async emit<T>(event: string, payload?: T): Promise<void> {
     if (localTauriEvents.includes(event)) {
       // eslint-disable-next-line
       for (const handler of this.listeners[event] || []) {
@@ -451,7 +458,7 @@ class Window {
       }
       return
     }
-    return emit(event, payload)
+    return emit<T>(event, payload)
   }
 
   /**
@@ -466,10 +473,10 @@ class Window {
    * @param event Event name. Must include only alphanumeric characters, `-`, `/`, `:` and `_`.
    * @param payload Event payload.
    */
-  async emitTo(
+  async emitTo<T>(
     target: string | EventTarget,
     event: string,
-    payload?: unknown
+    payload?: T
   ): Promise<void> {
     if (localTauriEvents.includes(event)) {
       // eslint-disable-next-line security/detect-object-injection
@@ -482,7 +489,7 @@ class Window {
       }
       return
     }
-    return emitTo(target, event, payload)
+    return emitTo<T>(target, event, payload)
   }
 
   /** @ignore */
@@ -530,7 +537,7 @@ class Window {
   async innerPosition(): Promise<PhysicalPosition> {
     return invoke<{ x: number; y: number }>('plugin:window|inner_position', {
       label: this.label
-    }).then(({ x, y }) => new PhysicalPosition(x, y))
+    }).then((p) => new PhysicalPosition(p))
   }
 
   /**
@@ -546,7 +553,7 @@ class Window {
   async outerPosition(): Promise<PhysicalPosition> {
     return invoke<{ x: number; y: number }>('plugin:window|outer_position', {
       label: this.label
-    }).then(({ x, y }) => new PhysicalPosition(x, y))
+    }).then((p) => new PhysicalPosition(p))
   }
 
   /**
@@ -566,7 +573,7 @@ class Window {
       {
         label: this.label
       }
-    ).then(({ width, height }) => new PhysicalSize(width, height))
+    ).then((s) => new PhysicalSize(s))
   }
 
   /**
@@ -586,7 +593,7 @@ class Window {
       {
         label: this.label
       }
-    ).then(({ width, height }) => new PhysicalSize(width, height))
+    ).then((s) => new PhysicalSize(s))
   }
 
   /**
@@ -793,6 +800,22 @@ class Window {
    */
   async theme(): Promise<Theme | null> {
     return invoke('plugin:window|theme', {
+      label: this.label
+    })
+  }
+
+  /**
+   * Whether the window is configured to be always on top of other windows or not.
+   * @example
+   * ```typescript
+   * import { getCurrentWindow } from '@tauri-apps/api/window';
+   * const alwaysOnTop = await getCurrentWindow().isAlwaysOnTop();
+   * ```
+   *
+   * @returns Whether the window is visible or not.
+   */
+  async isAlwaysOnTop(): Promise<boolean> {
+    return invoke('plugin:window|is_always_on_top', {
       label: this.label
     })
   }
@@ -1268,22 +1291,10 @@ class Window {
    * @param size The logical or physical inner size.
    * @returns A promise indicating the success or failure of the operation.
    */
-  async setSize(size: LogicalSize | PhysicalSize): Promise<void> {
-    if (!size || (size.type !== 'Logical' && size.type !== 'Physical')) {
-      throw new Error(
-        'the `size` argument must be either a LogicalSize or a PhysicalSize instance'
-      )
-    }
-
-    const value = {} as Record<string, unknown>
-    value[`${size.type}`] = {
-      width: size.width,
-      height: size.height
-    }
-
+  async setSize(size: LogicalSize | PhysicalSize | Size): Promise<void> {
     return invoke('plugin:window|set_size', {
       label: this.label,
-      value
+      value: size instanceof Size ? size : new Size(size)
     })
   }
 
@@ -1299,26 +1310,11 @@ class Window {
    * @returns A promise indicating the success or failure of the operation.
    */
   async setMinSize(
-    size: LogicalSize | PhysicalSize | null | undefined
+    size: LogicalSize | PhysicalSize | Size | null | undefined
   ): Promise<void> {
-    if (size && size.type !== 'Logical' && size.type !== 'Physical') {
-      throw new Error(
-        'the `size` argument must be either a LogicalSize or a PhysicalSize instance'
-      )
-    }
-
-    let value = null as Record<string, unknown> | null
-    if (size) {
-      value = {}
-      value[`${size.type}`] = {
-        width: size.width,
-        height: size.height
-      }
-    }
-
     return invoke('plugin:window|set_min_size', {
       label: this.label,
-      value
+      value: size instanceof Size ? size : size ? new Size(size) : null
     })
   }
 
@@ -1334,26 +1330,11 @@ class Window {
    * @returns A promise indicating the success or failure of the operation.
    */
   async setMaxSize(
-    size: LogicalSize | PhysicalSize | null | undefined
+    size: LogicalSize | PhysicalSize | Size | null | undefined
   ): Promise<void> {
-    if (size && size.type !== 'Logical' && size.type !== 'Physical') {
-      throw new Error(
-        'the `size` argument must be either a LogicalSize or a PhysicalSize instance'
-      )
-    }
-
-    let value = null as Record<string, unknown> | null
-    if (size) {
-      value = {}
-      value[`${size.type}`] = {
-        width: size.width,
-        height: size.height
-      }
-    }
-
     return invoke('plugin:window|set_max_size', {
       label: this.label,
-      value
+      value: size instanceof Size ? size : size ? new Size(size) : null
     })
   }
 
@@ -1398,26 +1379,11 @@ class Window {
    * @returns A promise indicating the success or failure of the operation.
    */
   async setPosition(
-    position: LogicalPosition | PhysicalPosition
+    position: LogicalPosition | PhysicalPosition | Position
   ): Promise<void> {
-    if (
-      !position ||
-      (position.type !== 'Logical' && position.type !== 'Physical')
-    ) {
-      throw new Error(
-        'the `position` argument must be either a LogicalPosition or a PhysicalPosition instance'
-      )
-    }
-
-    const value = {} as Record<string, unknown>
-    value[`${position.type}`] = {
-      x: position.x,
-      y: position.y
-    }
-
     return invoke('plugin:window|set_position', {
       label: this.label,
-      value
+      value: position instanceof Position ? position : new Position(position)
     })
   }
 
@@ -1573,6 +1539,22 @@ class Window {
   }
 
   /**
+   * Sets the window background color.
+   *
+   * #### Platform-specific:
+   *
+   * - **Windows:** alpha channel is ignored.
+   * - **iOS / Android:** Unsupported.
+   *
+   * @returns A promise indicating the success or failure of the operation.
+   *
+   * @since 2.1.0
+   */
+  async setBackgroundColor(color: Color): Promise<void> {
+    return invoke('plugin:window|set_background_color', { color })
+  }
+
+  /**
    * Changes the position of the cursor in window coordinates.
    * @example
    * ```typescript
@@ -1584,26 +1566,11 @@ class Window {
    * @returns A promise indicating the success or failure of the operation.
    */
   async setCursorPosition(
-    position: LogicalPosition | PhysicalPosition
+    position: LogicalPosition | PhysicalPosition | Position
   ): Promise<void> {
-    if (
-      !position ||
-      (position.type !== 'Logical' && position.type !== 'Physical')
-    ) {
-      throw new Error(
-        'the `position` argument must be either a LogicalPosition or a PhysicalPosition instance'
-      )
-    }
-
-    const value = {} as Record<string, unknown>
-    value[`${position.type}`] = {
-      x: position.x,
-      y: position.y
-    }
-
     return invoke('plugin:window|set_cursor_position', {
       label: this.label,
-      value
+      value: position instanceof Position ? position : new Position(position)
     })
   }
 
@@ -1656,6 +1623,79 @@ class Window {
     return invoke('plugin:window|start_resize_dragging', {
       label: this.label,
       value: direction
+    })
+  }
+
+  /**
+   * Sets the badge count. It is app wide and not specific to this window.
+   *
+   * #### Platform-specific
+   *
+   * - **Windows**: Unsupported. Use @{linkcode Window.setOverlayIcon} instead.
+   *
+   * @example
+   * ```typescript
+   * import { getCurrentWindow } from '@tauri-apps/api/window';
+   * await getCurrentWindow().setBadgeCount(5);
+   * ```
+   *
+   * @param count The badge count. Use `undefined` to remove the badge.
+   * @return A promise indicating the success or failure of the operation.
+   */
+  async setBadgeCount(count?: number): Promise<void> {
+    return invoke('plugin:window|set_badge_count', {
+      label: this.label,
+      value: count
+    })
+  }
+
+  /**
+   * Sets the badge cont **macOS only**.
+   *
+   * @example
+   * ```typescript
+   * import { getCurrentWindow } from '@tauri-apps/api/window';
+   * await getCurrentWindow().setBadgeLabel("Hello");
+   * ```
+   *
+   * @param label The badge label. Use `undefined` to remove the badge.
+   * @return A promise indicating the success or failure of the operation.
+   */
+  async setBadgeLabel(label?: string): Promise<void> {
+    return invoke('plugin:window|set_badge_label', {
+      label: this.label,
+      value: label
+    })
+  }
+
+  /**
+   * Sets the overlay icon. **Windows only**
+   * The overlay icon can be set for every window.
+   *
+   *
+   * Note that you may need the `image-ico` or `image-png` Cargo features to use this API.
+   * To enable it, change your Cargo.toml file:
+   *
+   * ```toml
+   * [dependencies]
+   * tauri = { version = "...", features = ["...", "image-png"] }
+   * ```
+   *
+   * @example
+   * ```typescript
+   * import { getCurrentWindow } from '@tauri-apps/api/window';
+   * await getCurrentWindow().setOverlayIcon("/tauri/awesome.png");
+   * ```
+   *
+   * @param icon Icon bytes or path to the icon file. Use `undefined` to remove the overlay icon.
+   * @return A promise indicating the success or failure of the operation.
+   */
+  async setOverlayIcon(
+    icon?: string | Image | Uint8Array | ArrayBuffer | number[]
+  ): Promise<void> {
+    return invoke('plugin:window|set_overlay_icon', {
+      label: this.label,
+      value: icon ? transformImage(icon) : undefined
     })
   }
 
@@ -1751,7 +1791,7 @@ class Window {
    */
   async onResized(handler: EventCallback<PhysicalSize>): Promise<UnlistenFn> {
     return this.listen<PhysicalSize>(TauriEvent.WINDOW_RESIZED, (e) => {
-      e.payload = mapPhysicalSize(e.payload)
+      e.payload = new PhysicalSize(e.payload)
       handler(e)
     })
   }
@@ -1775,7 +1815,7 @@ class Window {
    */
   async onMoved(handler: EventCallback<PhysicalPosition>): Promise<UnlistenFn> {
     return this.listen<PhysicalPosition>(TauriEvent.WINDOW_MOVED, (e) => {
-      e.payload = mapPhysicalPosition(e.payload)
+      e.payload = new PhysicalPosition(e.payload)
       handler(e)
     })
   }
@@ -1824,8 +1864,8 @@ class Window {
    * ```typescript
    * import { getCurrentWindow } from "@tauri-apps/api/webview";
    * const unlisten = await getCurrentWindow().onDragDropEvent((event) => {
-   *  if (event.payload.type === 'hover') {
-   *    console.log('User hovering', event.payload.paths);
+   *  if (event.payload.type === 'over') {
+   *    console.log('User hovering', event.payload.position);
    *  } else if (event.payload.type === 'drop') {
    *    console.log('User dropped', event.payload.paths);
    *  } else {
@@ -1853,7 +1893,7 @@ class Window {
           payload: {
             type: 'enter',
             paths: event.payload.paths,
-            position: mapPhysicalPosition(event.payload.position)
+            position: new PhysicalPosition(event.payload.position)
           }
         })
       }
@@ -1866,7 +1906,7 @@ class Window {
           ...event,
           payload: {
             type: 'over',
-            position: mapPhysicalPosition(event.payload.position)
+            position: new PhysicalPosition(event.payload.position)
           }
         })
       }
@@ -1880,7 +1920,7 @@ class Window {
           payload: {
             type: 'drop',
             paths: event.payload.paths,
-            position: mapPhysicalPosition(event.payload.position)
+            position: new PhysicalPosition(event.payload.position)
           }
         })
       }
@@ -1990,11 +2030,28 @@ class Window {
 }
 
 /**
- * an array RGBA colors. Each value has minimum of 0 and maximum of 255.
+ * An RGBA color. Each value has minimum of 0 and maximum of 255.
+ *
+ * It can be either a string `#ffffff`, an array of 3 or 4 elements or an object.
  *
  * @since 2.0.0
  */
-type Color = [number, number, number, number]
+type Color =
+  | [number, number, number]
+  | [number, number, number, number]
+  | { red: number; green: number; blue: number; alpha: number }
+  | string
+
+/**
+ * Background throttling policy
+ *
+ * @since 2.0.0
+ */
+enum BackgroundThrottlingPolicy {
+  Disabled = 'disabled',
+  Throttle = 'throttle',
+  Suspend = 'suspend'
+}
 
 /**
  * Platform-specific window effects
@@ -2170,6 +2227,14 @@ interface Effects {
 }
 
 /**
+ * Minimum margin to work area
+ */
+interface PreventOverflowMargin {
+  width: number
+  height: number
+}
+
+/**
  * Configuration for the window to create.
  *
  * @since 1.0.0
@@ -2193,6 +2258,21 @@ interface WindowOptions {
   maxWidth?: number
   /** The maximum height. Only applies if `maxWidth` is also set. */
   maxHeight?: number
+  /**
+   * Prevent the window from overflowing the working area (e.g. monitor size - taskbar size)
+   * on creation, which means the window size will be limited to `monitor size - taskbar size`
+   *
+   * Can either be set to `true` or to a {@link PreventOverflowMargin} object to set an additional margin
+   * that should be considered to determine the working area
+   * (in this case the window size will be limited to `monitor size - taskbar size - margin`)
+   *
+   * **NOTE**: The overflow check is only performed on window creation, resizes can still overflow
+   *
+   * #### Platform-specific
+   *
+   * - **iOS / Android:** Unsupported.
+   */
+  preventOverflow?: boolean | PreventOverflowMargin
   /** Whether the window is resizable or not. */
   resizable?: boolean
   /** Window title. */
@@ -2291,6 +2371,58 @@ interface WindowOptions {
    * @since 2.0.0
    */
   visibleOnAllWorkspaces?: boolean
+  /**
+   * Window effects.
+   *
+   * Requires the window to be transparent.
+   *
+   * #### Platform-specific:
+   *
+   * - **Windows**: If using decorations or shadows, you may want to try this workaround <https://github.com/tauri-apps/tao/issues/72#issuecomment-975607891>
+   * - **Linux**: Unsupported
+   */
+  windowEffects?: Effects
+  /**
+   * Set the window background color.
+   *
+   * #### Platform-specific:
+   *
+   * - **Android / iOS:** Unsupported.
+   * - **Windows**: alpha channel is ignored.
+   *
+   * @since 2.1.0
+   */
+  backgroundColor?: Color
+
+  /** Change the default background throttling behaviour.
+   *
+   * ## Platform-specific
+   *
+   * - **Linux / Windows / Android**: Unsupported. Workarounds like a pending WebLock transaction might suffice.
+   * - **iOS**: Supported since version 17.0+.
+   * - **macOS**: Supported since version 14.0+.
+   *
+   * see https://github.com/tauri-apps/tauri/issues/5250#issuecomment-2569380578
+   *
+   * @since 2.3.0
+   */
+  backgroundThrottling?: BackgroundThrottlingPolicy
+  /**
+   * Whether we should disable JavaScript code execution on the webview or not.
+   */
+  javascriptDisabled?: boolean
+  /**
+   * on macOS and iOS there is a link preview on long pressing links, this is enabled by default.
+   * see https://docs.rs/objc2-web-kit/latest/objc2_web_kit/struct.WKWebView.html#method.allowsLinkPreview
+   */
+  allowLinkPreview?: boolean
+  /**
+   * Allows disabling the input accessory view on iOS.
+   *
+   * The accessory view is the view that appears above the keyboard when a text input element is focused.
+   * It usually displays a view with "Done", "Next" buttons.
+   */
+  disableInputAccessoryView?: boolean
 }
 
 function mapMonitor(m: Monitor | null): Monitor | null {
@@ -2299,17 +2431,13 @@ function mapMonitor(m: Monitor | null): Monitor | null {
     : {
         name: m.name,
         scaleFactor: m.scaleFactor,
-        position: mapPhysicalPosition(m.position),
-        size: mapPhysicalSize(m.size)
+        position: new PhysicalPosition(m.position),
+        size: new PhysicalSize(m.size),
+        workArea: {
+          position: new PhysicalPosition(m.workArea.position),
+          size: new PhysicalSize(m.workArea.size)
+        }
       }
-}
-
-function mapPhysicalPosition(m: PhysicalPosition): PhysicalPosition {
-  return new PhysicalPosition(m.x, m.y)
-}
-
-function mapPhysicalSize(m: PhysicalSize): PhysicalSize {
-  return new PhysicalSize(m.width, m.height)
 }
 
 /**
@@ -2318,7 +2446,7 @@ function mapPhysicalSize(m: PhysicalSize): PhysicalSize {
  * @example
  * ```typescript
  * import { currentMonitor } from '@tauri-apps/api/window';
- * const monitor = currentMonitor();
+ * const monitor = await currentMonitor();
  * ```
  *
  * @since 1.0.0
@@ -2335,7 +2463,7 @@ async function currentMonitor(): Promise<Monitor | null> {
  * @example
  * ```typescript
  * import { primaryMonitor } from '@tauri-apps/api/window';
- * const monitor = primaryMonitor();
+ * const monitor = await primaryMonitor();
  * ```
  *
  * @since 1.0.0
@@ -2351,7 +2479,7 @@ async function primaryMonitor(): Promise<Monitor | null> {
  * @example
  * ```typescript
  * import { monitorFromPoint } from '@tauri-apps/api/window';
- * const monitor = monitorFromPoint();
+ * const monitor = await monitorFromPoint(100.0, 200.0);
  * ```
  *
  * @since 1.0.0
@@ -2368,7 +2496,7 @@ async function monitorFromPoint(x: number, y: number): Promise<Monitor | null> {
  * @example
  * ```typescript
  * import { availableMonitors } from '@tauri-apps/api/window';
- * const monitors = availableMonitors();
+ * const monitors = await availableMonitors();
  * ```
  *
  * @since 1.0.0
@@ -2391,7 +2519,7 @@ async function availableMonitors(): Promise<Monitor[]> {
  */
 async function cursorPosition(): Promise<PhysicalPosition> {
   return invoke<PhysicalPosition>('plugin:window|cursor_position').then(
-    mapPhysicalPosition
+    (v) => new PhysicalPosition(v)
   )
 }
 
@@ -2421,5 +2549,6 @@ export type {
   ScaleFactorChanged,
   WindowOptions,
   Color,
+  BackgroundThrottlingPolicy,
   DragDropEvent
 }

@@ -16,6 +16,7 @@ use syn::{
   spanned::Spanned,
   Expr, ExprLit, FnArg, ItemFn, Lit, Meta, Pat, Token, Visibility,
 };
+use tauri_utils::acl::REMOVE_UNUSED_COMMANDS_ENV_VAR;
 
 enum WrapperAttributeKind {
   Meta(Meta),
@@ -186,9 +187,18 @@ pub fn wrapper(attributes: TokenStream, item: TokenStream) -> TokenStream {
             // only implemented by `Result`. That way we don't exclude renamed result types
             // which we wouldn't otherwise be able to detect purely from the token stream.
             // The "error message" displayed to the user is simply the trait name.
+            //
+            // TODO: remove this check once our MSRV is high enough
+            let diagnostic = if is_rustc_at_least(1, 78) {
+              quote!(#[diagnostic::on_unimplemented(message = "async commands that contain references as inputs must return a `Result`")])
+            } else {
+              quote!()
+            };
+
             async_command_check = quote_spanned! {return_type.span() =>
               #[allow(unreachable_code, clippy::diverging_sub_expression)]
               const _: () = if false {
+                #diagnostic
                 trait AsyncCommandMustReturnResult {}
                 impl<A, B> AsyncCommandMustReturnResult for ::std::result::Result<A, B> {}
                 let _check: #return_type = unreachable!();
@@ -252,27 +262,43 @@ pub fn wrapper(attributes: TokenStream, item: TokenStream) -> TokenStream {
     quote!()
   };
 
+  // Allow this to be unused when we're building with `build > removeUnusedCommands` for dead code elimination
+  let maybe_allow_unused = if var(REMOVE_UNUSED_COMMANDS_ENV_VAR).is_ok() {
+    quote!(#[allow(unused)])
+  } else {
+    TokenStream2::default()
+  };
+
   // Rely on rust 2018 edition to allow importing a macro from a path.
   quote!(
     #async_command_check
 
+    #maybe_allow_unused
     #function
 
+    #maybe_allow_unused
     #maybe_macro_export
     #[doc(hidden)]
     macro_rules! #wrapper {
-        // double braces because the item is expected to be a block expression
-        ($path:path, $invoke:ident) => {{
-          #[allow(unused_imports)]
-          use #root::ipc::private::*;
-          // prevent warnings when the body is a `compile_error!` or if the command has no arguments
-          #[allow(unused_variables)]
-          let #root::ipc::Invoke { message: #message, resolver: #resolver, acl: #acl } = $invoke;
+      // double braces because the item is expected to be a block expression
+      ($path:path, $invoke:ident) => {
+        // The IIFE here is for preventing stack overflow on Windows debug build,
+        // see https://github.com/tauri-apps/tauri/issues/12488
+        {
+          #[cfg_attr(not(debug_assertions), inline(always))]
+          move || {
+            #[allow(unused_imports)]
+            use #root::ipc::private::*;
+            // prevent warnings when the body is a `compile_error!` or if the command has no arguments
+            #[allow(unused_variables)]
+            let #root::ipc::Invoke { message: #message, resolver: #resolver, acl: #acl } = $invoke;
 
-          #maybe_span
+            #maybe_span
 
-          #body
-      }};
+            #body
+          }
+        }()
+      };
     }
 
     // allow the macro to be resolved with the same path as the command function
@@ -451,4 +477,43 @@ fn parse_arg(
       acl: &#acl,
     }
   )))
+}
+
+fn is_rustc_at_least(major: u32, minor: u32) -> bool {
+  let version = rustc_version();
+  version.0 >= major && version.1 >= minor
+}
+
+fn rustc_version() -> (u32, u32) {
+  cross_command("rustc")
+    .arg("-V")
+    .output()
+    .ok()
+    .and_then(|o| {
+      let version = String::from_utf8_lossy(&o.stdout)
+        .trim()
+        .split(' ')
+        .nth(1)
+        .unwrap_or_default()
+        .split('.')
+        .take(2)
+        .flat_map(|p| p.parse::<u32>().ok())
+        .collect::<Vec<_>>();
+      version
+        .first()
+        .and_then(|major| version.get(1).map(|minor| (*major, *minor)))
+    })
+    .unwrap_or((1, 0))
+}
+
+fn cross_command(bin: &str) -> std::process::Command {
+  #[cfg(target_os = "windows")]
+  let cmd = {
+    let mut cmd = std::process::Command::new("cmd");
+    cmd.arg("/c").arg(bin);
+    cmd
+  };
+  #[cfg(not(target_os = "windows"))]
+  let cmd = std::process::Command::new(bin);
+  cmd
 }

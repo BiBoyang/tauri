@@ -6,9 +6,9 @@
 
 (function (message) {
   if (
-    message instanceof ArrayBuffer ||
-    ArrayBuffer.isView(message) ||
-    Array.isArray(message)
+    message instanceof ArrayBuffer
+    || ArrayBuffer.isView(message)
+    || Array.isArray(message)
   ) {
     return {
       contentType: 'application/octet-stream',
@@ -16,20 +16,23 @@
     }
   } else {
     const data = JSON.stringify(message, (_k, val) => {
+      // if this value changes, make sure to update it in:
+      // 1. ipc.js
+      // 2. core.ts
+      const SERIALIZE_TO_IPC_FN = '__TAURI_TO_IPC_KEY__'
+
       if (val instanceof Map) {
-        let o = {}
-        val.forEach((v, k) => (o[k] = v))
-        return o
+        return Object.fromEntries(val.entries())
       } else if (val instanceof Uint8Array) {
         return Array.from(val)
       } else if (val instanceof ArrayBuffer) {
         return Array.from(new Uint8Array(val))
-      }  else if (
-        val instanceof Object &&
-        '__TAURI_CHANNEL_MARKER__' in val &&
-        typeof val.id === 'number'
+      } else if (
+        typeof val === 'object'
+        && val !== null
+        && SERIALIZE_TO_IPC_FN in val
       ) {
-        return `__CHANNEL__:${val.id}`
+        return val[SERIALIZE_TO_IPC_FN]()
       } else {
         return val
       }

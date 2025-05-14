@@ -104,7 +104,8 @@ impl ValidByte {
 
       (_, IDENTIFIER_SEPARATOR) => Some(ValidByte::Separator),
       (ValidByte::Separator, next) => ValidByte::alpha_numeric(next),
-      (ValidByte::Byte(b'-'), next) => ValidByte::alpha_numeric(next),
+      (ValidByte::Byte(b'-'), next) => ValidByte::alpha_numeric_hyphen(next),
+      (ValidByte::Byte(b'_'), next) => ValidByte::alpha_numeric_hyphen(next),
       (ValidByte::Byte(_), next) => ValidByte::alpha_numeric_hyphen(next),
     }
   }
@@ -122,7 +123,7 @@ pub enum ParseIdentifierError {
   Empty,
 
   /// Identifier is too long.
-  #[error("identifiers cannot be longer than {}, found {0}", MAX_LEN_IDENTIFIER)]
+  #[error("identifiers cannot be longer than {len}, found {0}", len = MAX_LEN_IDENTIFIER)]
   Humongous(usize),
 
   /// Identifier is not in a valid format.

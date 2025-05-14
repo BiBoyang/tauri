@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-import { InvokeArgs, InvokeOptions } from './core'
+import type { invoke, InvokeArgs, InvokeOptions } from './core'
 
 function mockInternals() {
   window.__TAURI_INTERNALS__ = window.__TAURI_INTERNALS__ ?? {}
@@ -15,8 +15,8 @@ function mockInternals() {
  *
  * # Examples
  *
- * Testing setup using vitest:
- * ```js
+ * Testing setup using Vitest:
+ * ```ts
  * import { mockIPC, clearMocks } from "@tauri-apps/api/mocks"
  * import { invoke } from "@tauri-apps/api/core"
  *
@@ -62,42 +62,40 @@ function mockInternals() {
  * @since 1.0.0
  */
 export function mockIPC(
-  cb: <T>(cmd: string, payload?: InvokeArgs) => Promise<T>
+  cb: (cmd: string, payload?: InvokeArgs) => unknown
 ): void {
   mockInternals()
 
-  window.__TAURI_INTERNALS__.transformCallback = function transformCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    callback?: (response: any) => void,
+  const callbacks = new Map()
+
+  function registerCallback<T = unknown>(
+    callback?: (response: T) => void,
     once = false
   ) {
     const identifier = window.crypto.getRandomValues(new Uint32Array(1))[0]
-    const prop = `_${identifier}`
-
-    Object.defineProperty(window, prop, {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      value: (result: any) => {
-        if (once) {
-          Reflect.deleteProperty(window, prop)
-        }
-
-        return callback && callback(result)
-      },
-      writable: false,
-      configurable: true
+    callbacks.set(identifier, (data: T) => {
+      if (once) {
+        unregisterCallback(identifier)
+      }
+      return callback && callback(data)
     })
-
     return identifier
   }
 
-  window.__TAURI_INTERNALS__.invoke = function <T>(
+  function unregisterCallback(id: number) {
+    callbacks.delete(id)
+  }
+
+  window.__TAURI_INTERNALS__.transformCallback = registerCallback
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  window.__TAURI_INTERNALS__.invoke = async function (
     cmd: string,
     args?: InvokeArgs,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    options?: InvokeOptions
-  ): Promise<T> {
+    _options?: InvokeOptions
+  ): Promise<unknown> {
     return cb(cmd, args)
-  }
+  } as typeof invoke
 }
 
 /**

@@ -1,5 +1,195 @@
 # Changelog
 
+## \[2.5.0]
+
+### New Features
+
+- [`0aa48fb9e`](https://www.github.com/tauri-apps/tauri/commit/0aa48fb9e4b9d7b5bf3522000a76ebc1836394ed) ([#13030](https://www.github.com/tauri-apps/tauri/pull/13030)) Added `bundleVersion` to iOS and macOS configuration to support specifying a `CFBundleVersion`.
+
+### Enhancements
+
+- [`ad3fd3890`](https://www.github.com/tauri-apps/tauri/commit/ad3fd3890f1fa26a9f9be04ff1bc156d6dd2a8bc) ([#13152](https://www.github.com/tauri-apps/tauri/pull/13152)) Detect package manager from environment variable `npm_config_user_agent` first
+- [`82406c61e`](https://www.github.com/tauri-apps/tauri/commit/82406c61e0fbb775ef00791ccab45349325bdd45) ([#13231](https://www.github.com/tauri-apps/tauri/pull/13231)) Improve iOS simulator usage, checking if Xcode iOS SDK is installed and allowing usage of Simulator for older iOS releases (previously only supported when running on Xcode via `ios dev --open`).
+
+### Bug Fixes
+
+- [`2dccfab53`](https://www.github.com/tauri-apps/tauri/commit/2dccfab5321fef55d45f3a4c674b6151b1c4424a) ([#13236](https://www.github.com/tauri-apps/tauri/pull/13236)) Fix `fileAssociations` missing `LSHandlerRank` on macOS.
+- [`080252903`](https://www.github.com/tauri-apps/tauri/commit/0802529031c4fd309edff374a8694e93ddec161d) ([#13210](https://www.github.com/tauri-apps/tauri/pull/13210)) Fixes iOS dev not working on Xcode 16.3 simulators. To apply the fix, either regenerate the Xcode project with `rm -r src-tauri/gen/apple && tauri ios init` or remove the `arm64-sim` architecture from the Xcode project.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.4.0`
+- Upgraded to `tauri-bundler@2.4.0`
+
+## \[2.4.1]
+
+### Enhancements
+
+- [`f805061d1`](https://www.github.com/tauri-apps/tauri/commit/f805061d1152bc4790dbdb9475a506afcdd1de75) ([#13079](https://www.github.com/tauri-apps/tauri/pull/13079) by [@Pietagorh](https://www.github.com/tauri-apps/tauri/../../Pietagorh)) Add support for passing TOML and JSON5 config files to `--config` arg
+
+### Bug Fixes
+
+- [`30beb6fee`](https://www.github.com/tauri-apps/tauri/commit/30beb6fee7b052e588ee72c238e315a557b5d6f2) ([#13096](https://www.github.com/tauri-apps/tauri/pull/13096) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Fix `tauri info` can't find the latest version for rust crates
+- [`30beb6fee`](https://www.github.com/tauri-apps/tauri/commit/30beb6fee7b052e588ee72c238e315a557b5d6f2) ([#13096](https://www.github.com/tauri-apps/tauri/pull/13096) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Fix `tauri info` logging network operations in `info` level instead of `debug`
+- [`794af778e`](https://www.github.com/tauri-apps/tauri/commit/794af778e4915ffb6a4fe9bae8fba04bc880503d) ([#13117](https://www.github.com/tauri-apps/tauri/pull/13117) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Fix setting merge config value to null with `--config` arg no longer works
+
+### Dependencies
+
+- Upgraded to `tauri-bundler@2.3.1`
+- Upgraded to `tauri-utils@2.3.1`
+
+## \[2.4.0]
+
+### New Features
+
+- [`d91bfa5cb`](https://www.github.com/tauri-apps/tauri/commit/d91bfa5cb921a078758edd45ef3eaff71358d1eb) ([#12970](https://www.github.com/tauri-apps/tauri/pull/12970) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Allow merging multiple configuration values on `tauri dev`, `tauri build`, `tauri bundle`, `tauri android dev`, `tauri android build`, `tauri ios dev` and `tauri ios build`.
+- [`013f8f652`](https://www.github.com/tauri-apps/tauri/commit/013f8f652302f2d49c5ec0a075582033d8b074fb) ([#12890](https://www.github.com/tauri-apps/tauri/pull/12890) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Reads `build > removeUnusedCommands` from the config file and pass in the environment variables on the build command to trigger the build scripts and macros to remove unused commands based on the capabilities you defined. For this to work on inlined plugins you must add a `#![plugin(<insert_plugin_name>)]` inside the `tauri::generate_handler![]` usage and the app manifest must be set.
+- [`30f5a1553`](https://www.github.com/tauri-apps/tauri/commit/30f5a1553d3c0ce460c9006764200a9210915a44) ([#12366](https://www.github.com/tauri-apps/tauri/pull/12366) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Added `trafficLightPosition` window configuration to set the traffic light buttons position on macOS.
+
+### Enhancements
+
+- [`f981a5ee8`](https://www.github.com/tauri-apps/tauri/commit/f981a5ee8b292b9ea09329f60cecc7f688dda734) ([#12602](https://www.github.com/tauri-apps/tauri/pull/12602) by [@kxxt](https://www.github.com/tauri-apps/tauri/../../kxxt)) Add basic support for linux riscv64 platform.
+
+### Bug Fixes
+
+- [`0c4700e99`](https://www.github.com/tauri-apps/tauri/commit/0c4700e9907f242eabe579eb6149a1d75174185c) ([#12985](https://www.github.com/tauri-apps/tauri/pull/12985) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) The cli will now accept `--bundles updater` again. It's still no-op as it has been for all v2 versions. If you want to build updater artifacts, enable `createUpdaterArtifacts` in `tauri.conf.json`.
+- [`eec08a18b`](https://www.github.com/tauri-apps/tauri/commit/eec08a18b66525f5544cd30144d0553260ee3a70) ([#12998](https://www.github.com/tauri-apps/tauri/pull/12998) by [@jason89521](https://www.github.com/tauri-apps/tauri/../../jason89521)) For bun's lockfile, check both `bun.lock` and `bun.lockb`.
+- [`b83921226`](https://www.github.com/tauri-apps/tauri/commit/b83921226cb3084992bb5357e7e39a09ea97843e) ([#12977](https://www.github.com/tauri-apps/tauri/pull/12977) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Fix `tauri ios` commands using the wrong working directory with `bun@>1.2`.
+- [`f268b3dbd`](https://www.github.com/tauri-apps/tauri/commit/f268b3dbdf313484c85b4a1f69cd7cec63049f35) ([#12871](https://www.github.com/tauri-apps/tauri/pull/12871) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Ignore parent .gitignore files on the Tauri project path detection.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.3.0`
+- Upgraded to `tauri-bundler@2.3.0`
+
+## \[2.3.1]
+
+### Bug Fixes
+
+- [`22e9bf74a`](https://www.github.com/tauri-apps/tauri/commit/22e9bf74a4684c827279a85bb66548e83c1ea5cf) ([#12538](https://www.github.com/tauri-apps/tauri/pull/12538) by [@DeTeam](https://www.github.com/tauri-apps/tauri/../../DeTeam)) Set initialViewController for LaunchScreen (iOS).
+
+## \[2.3.0]
+
+### Enhancements
+
+- [`a2d36b8c3`](https://www.github.com/tauri-apps/tauri/commit/a2d36b8c34a8dcfc6736797ca5cd4665faf75e7e) ([#12181](https://www.github.com/tauri-apps/tauri/pull/12181) by [@bastiankistner](https://www.github.com/tauri-apps/tauri/../../bastiankistner)) Add an option to change the default background throttling policy (currently for WebKit only).
+- [`6e417c943`](https://www.github.com/tauri-apps/tauri/commit/6e417c9435d8fae0eca9e8d42d6215e887a28d98) ([#12786](https://www.github.com/tauri-apps/tauri/pull/12786) by [@kandrelczyk](https://www.github.com/tauri-apps/tauri/../../kandrelczyk)) Added RPM to the list of package types for which signature file will be generated.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.2.0`
+- Upgraded to `tauri-bundler@2.2.4`
+- Upgraded to `tauri-macos-sign@2.1.0`
+
+## \[2.2.7]
+
+### Bug Fixes
+
+- [`8e9134c4a`](https://www.github.com/tauri-apps/tauri/commit/8e9134c4a2047329be0dbb868b7ae061a9d3f190) ([#12511](https://www.github.com/tauri-apps/tauri/pull/12511) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Fixed an issue that caused `tauri dev` to fail because of an incorrect `--bins` flag.
+
+## \[2.2.6]
+
+### Enhancements
+
+- [`1a86974aa`](https://www.github.com/tauri-apps/tauri/commit/1a86974aa3d09957c6b1142a17bbfed9998798fd) ([#12406](https://www.github.com/tauri-apps/tauri/pull/12406) by [@bradleat](https://www.github.com/tauri-apps/tauri/../../bradleat)) `ios build --open` will now let xcode start the rust build process.
+- [`9a30bed98`](https://www.github.com/tauri-apps/tauri/commit/9a30bed98c2d8501328006fad5840eb9d533e1c2) ([#12423](https://www.github.com/tauri-apps/tauri/pull/12423) by [@tr3ysmith](https://www.github.com/tauri-apps/tauri/../../tr3ysmith)) Added conditional logic to MacOS codesigning where only executables get the entitlements file when being signed. This solves an issue where the app may not launch when using 3rd party frameworks if certain entitlements are added. Ex: multicast support (must be applied for through apple developer, and the framework would not have that capability).
+- [`0b79af711`](https://www.github.com/tauri-apps/tauri/commit/0b79af711430934362602fb950c3e4cb5b59cf9c) ([#12438](https://www.github.com/tauri-apps/tauri/pull/12438) by [@3lpsy](https://www.github.com/tauri-apps/tauri/../../3lpsy)) Log the command used to start the rust app in development.
+
+### Bug Fixes
+
+- [`bc43c738b`](https://www.github.com/tauri-apps/tauri/commit/bc43c738baf686353690d3d9259b4976881718c8) ([#12442](https://www.github.com/tauri-apps/tauri/pull/12442) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Fixed an issue that prevented `tauri add` to work for the `clipboard-manager` plugin.
+- [`27096cdc0`](https://www.github.com/tauri-apps/tauri/commit/27096cdc05d89b61b2372b4e4a3018c87f240ab8) ([#12445](https://www.github.com/tauri-apps/tauri/pull/12445) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Fixed an issue that caused Tauri's CLI to enable tauri's `native-tls` feature even though it wasn't needed. Moved `reqwest` to a mobile-only dependency in `tauri` and enabled its `rustls-tls` feature flag.
+
+### Dependencies
+
+- Upgraded to `tauri-bundler@2.2.3`
+
+## \[2.2.5]
+
+### Dependencies
+
+- Upgraded to `tauri-bundler@2.2.2`
+
+## \[2.2.4]
+
+### Bug Fixes
+
+- [`cad550445`](https://www.github.com/tauri-apps/tauri/commit/cad5504455ffa53e297cebff473c113b1afa5d29) ([#12354](https://www.github.com/tauri-apps/tauri/pull/12354) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Fixed and issue that caused `tauri add` to try to install incorrect npm packages.
+
+## \[2.2.3]
+
+### Enhancements
+
+- [`a0f2c84d5`](https://www.github.com/tauri-apps/tauri/commit/a0f2c84d51f5086c5055867d6f61ea90c463a26c) ([#12204](https://www.github.com/tauri-apps/tauri/pull/12204) by [@pjf-dev](https://www.github.com/tauri-apps/tauri/../../pjf-dev)) Enhance `tauri icon` command by including 64x64 png size in default icon sizes.
+
+### Bug Fixes
+
+- [`98f62e65a`](https://www.github.com/tauri-apps/tauri/commit/98f62e65a27a375272c6b4d9f34c23e142b9d3a6) ([#12246](https://www.github.com/tauri-apps/tauri/pull/12246) by [@marcomq](https://www.github.com/tauri-apps/tauri/../../marcomq)) Properly add NPM packages for community plugins when using the `tauri add` command.
+- [`b9a99a5c6`](https://www.github.com/tauri-apps/tauri/commit/b9a99a5c69d8a2a1a3ff30e500b46872258dca15) ([#12297](https://www.github.com/tauri-apps/tauri/pull/12297) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Fixed an issue that caused the built-in dev server to constantly refresh on Linux. This only affected users who do not have `devUrl` point to a URL.
+- [`ef21ed9ac`](https://www.github.com/tauri-apps/tauri/commit/ef21ed9ac1c045c38b0c04e3d71a441694abc257) ([#12290](https://www.github.com/tauri-apps/tauri/pull/12290) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Fix iOS build failing when the development team contains spaces.
+
+### Dependencies
+
+- Upgraded to `tauri-bundler@2.2.1`
+
+## \[2.2.2]
+
+### Bug Fixes
+
+- [`26fc9558f`](https://www.github.com/tauri-apps/tauri/commit/26fc9558fe7b2fe649f61926da88f36110dd5707) ([#12178](https://www.github.com/tauri-apps/tauri/pull/12178) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Fixed an issue that caused the `tauri dev` file watcher to exit after detecting file changes.
+
+## \[2.2.1]
+
+### Bug Fixes
+
+- [`881729448`](https://www.github.com/tauri-apps/tauri/commit/881729448c9abd0d0c7941a8a31c94119ce827af) ([#12164](https://www.github.com/tauri-apps/tauri/pull/12164) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Fixed an issue that caused `tauri dev` to crash before showing the app on Linux.
+
+## \[2.2.0]
+
+### New Features
+
+- [`cccb308c7`](https://www.github.com/tauri-apps/tauri/commit/cccb308c7b559b0838138d6cea280665f060c925) ([#11562](https://www.github.com/tauri-apps/tauri/pull/11562) by [@jLynx](https://www.github.com/tauri-apps/tauri/../../jLynx)) Generate signature for `.deb` packages when `createUpdaterArtifacts` option is enabled.
+- [`74212d40d`](https://www.github.com/tauri-apps/tauri/commit/74212d40d80dba4501b3d4ae30104fa3d447bdf9) ([#11653](https://www.github.com/tauri-apps/tauri/pull/11653) by [@amrbashir](https://www.github.com/tauri-apps/tauri/../../amrbashir)) Include Linux destkop environment and session type in `tauri info` command.
+
+### Enhancements
+
+- [`93a3a043d`](https://www.github.com/tauri-apps/tauri/commit/93a3a043d39cc96515d51d98beeb14261d3a246b) ([#11727](https://www.github.com/tauri-apps/tauri/pull/11727) by [@Kiyozz](https://www.github.com/tauri-apps/tauri/../../Kiyozz)) Add support for `Portuguese` language for NSIS windows installer.
+
+### Bug Fixes
+
+- [`c8700656b`](https://www.github.com/tauri-apps/tauri/commit/c8700656be3001a0cc6e087f23aebd482430a85b) ([#11985](https://www.github.com/tauri-apps/tauri/pull/11985) by [@ShaunSHamilton](https://www.github.com/tauri-apps/tauri/../../ShaunSHamilton)) Fix `tauri remove` from removing object type (`{}`) permissions.
+- [`0ae06c5ca`](https://www.github.com/tauri-apps/tauri/commit/0ae06c5ca89cecd24154affdc69668f5e1e67d85) ([#11914](https://www.github.com/tauri-apps/tauri/pull/11914) by [@wtto00](https://www.github.com/tauri-apps/tauri/../../wtto00)) Fix the exclude path in file `Cargo.toml` of plugin template generated by cli. Path changed in [#9346](https://github.com/tauri-apps/tauri/pull/9346)
+
+### Dependencies
+
+- Upgraded to `tauri-bundler@2.2.0`
+- Upgraded to `tauri-utils@2.1.1`
+
+## \[2.1.0]
+
+### New Features
+
+- [`1b6b2cfaa`](https://www.github.com/tauri-apps/tauri/commit/1b6b2cfaa14ab1d418c676cedbf942a812377a30) ([#11521](https://www.github.com/tauri-apps/tauri/pull/11521) by [@amrbashir](https://www.github.com/tauri-apps/tauri/../../amrbashir)) Process `bundle > windows > wix > fragmentPaths` with Handlebars to interpolate expressions within it.
+- [`6bf917941`](https://www.github.com/tauri-apps/tauri/commit/6bf917941ff0fcc49e86b3ba427340b75f3ce49c) ([#11322](https://www.github.com/tauri-apps/tauri/pull/11322) by [@ShaunSHamilton](https://www.github.com/tauri-apps/tauri/../../ShaunSHamilton)) Add `tauri remove` to remove plugins from projects.
+- [`058c0db72`](https://www.github.com/tauri-apps/tauri/commit/058c0db72f43fbe1574d0db654560e693755cd7e) ([#11584](https://www.github.com/tauri-apps/tauri/pull/11584) by [@amrbashir](https://www.github.com/tauri-apps/tauri/../../amrbashir)) Add `bundle > linux > rpm > compression` config option to control RPM bundle compression type and level.
+
+### Enhancements
+
+- [`1f311832a`](https://www.github.com/tauri-apps/tauri/commit/1f311832ab5b2d62a533dfcf9b1d78bddf249ae8) ([#11405](https://www.github.com/tauri-apps/tauri/pull/11405) by [@amrbashir](https://www.github.com/tauri-apps/tauri/../../amrbashir)) Add more context for errors when decoding secret and public keys for signing updater artifacts.
+- [`e0d1307d3`](https://www.github.com/tauri-apps/tauri/commit/e0d1307d3f78987d0059921a5ab01ea4b26e0ef1) ([#11414](https://www.github.com/tauri-apps/tauri/pull/11414) by [@Czxck001](https://www.github.com/tauri-apps/tauri/../../Czxck001)) Migrate the `$schema` Tauri configuration to the v2 format.
+- [`c43d5df15`](https://www.github.com/tauri-apps/tauri/commit/c43d5df15828ecffa606482ea2b60350c488c981) ([#11512](https://www.github.com/tauri-apps/tauri/pull/11512) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Associate a newly created capability file with the `main` window on the `tauri add` and `tauri permission add` commands.
+
+### Bug Fixes
+
+- [`7af01ff2c`](https://www.github.com/tauri-apps/tauri/commit/7af01ff2ce623d727cd13a4c8a549c1c80031882) ([#11523](https://www.github.com/tauri-apps/tauri/pull/11523) by [@amrbashir](https://www.github.com/tauri-apps/tauri/../../amrbashir)) Fix `tauri migrate` failing to install NPM depenencies when running from Deno.
+- [`100a4455a`](https://www.github.com/tauri-apps/tauri/commit/100a4455aa48df508510bbc08273215bdf70c012) ([#11529](https://www.github.com/tauri-apps/tauri/pull/11529) by [@amrbashir](https://www.github.com/tauri-apps/tauri/../../amrbashir)) Fix detecting yarn berry (v2 and higher) in various tauri cli commands.
+- [`60e86d5f6`](https://www.github.com/tauri-apps/tauri/commit/60e86d5f6e0f0c769d34ef368cd8801a918d796d) ([#11624](https://www.github.com/tauri-apps/tauri/pull/11624) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Use the public network IP address on `android dev` by default on Windows.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.1.0`
+- Upgraded to `tauri-bundler@2.1.0`
+
 ## \[2.0.4]
 
 ### Enhancements

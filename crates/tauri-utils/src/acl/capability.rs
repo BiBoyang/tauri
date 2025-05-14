@@ -76,8 +76,9 @@ impl<'de> Deserialize<'de> for PermissionEntry {
 
 /// A grouping and boundary mechanism developers can use to isolate access to the IPC layer.
 ///
-/// It controls application windows fine grained access to the Tauri core, application, or plugin commands.
-/// If a window is not matching any capability then it has no access to the IPC layer at all.
+/// It controls application windows' and webviews' fine grained access
+/// to the Tauri core, application, or plugin commands.
+/// If a webview or its window is not matching any capability then it has no access to the IPC layer at all.
 ///
 /// This can be done to create groups of windows, based on their required system access, which can reduce
 /// impact of frontend vulnerabilities in less privileged windows.
@@ -93,15 +94,15 @@ impl<'de> Deserialize<'de> for PermissionEntry {
 ///   "windows": [
 ///     "main"
 ///   ],
-///  "permissions": [
-///   "core:default",
-///   "dialog:open",
-///   {
-///     "identifier": "fs:allow-write-text-file",
-///     "allow": [{ "path": "$HOME/test.txt" }]
-///   },
-///  ],
-///  "platforms": ["macOS","windows"]
+///   "permissions": [
+///     "core:default",
+///     "dialog:open",
+///     {
+///       "identifier": "fs:allow-write-text-file",
+///       "allow": [{ "path": "$HOME/test.txt" }]
+///     },
+///   ],
+///   "platforms": ["macOS","windows"]
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -148,7 +149,12 @@ pub struct Capability {
   pub local: bool,
   /// List of windows that are affected by this capability. Can be a glob pattern.
   ///
-  /// On multiwebview windows, prefer [`Self::webviews`] for a fine grained access control.
+  /// If a window label matches any of the patterns in this list,
+  /// the capability will be enabled on all the webviews of that window,
+  /// regardless of the value of [`Self::webviews`].
+  ///
+  /// On multiwebview windows, prefer specifying [`Self::webviews`] and omitting [`Self::windows`]
+  /// for a fine grained access control.
   ///
   /// ## Example
   ///
@@ -157,8 +163,9 @@ pub struct Capability {
   pub windows: Vec<String>,
   /// List of webviews that are affected by this capability. Can be a glob pattern.
   ///
-  /// This is only required when using on multiwebview contexts, by default
-  /// all child webviews of a window that matches [`Self::windows`] are linked.
+  /// The capability will be enabled on all the webviews
+  /// whose label matches any of the patterns in this list,
+  /// regardless of whether the webview's window label matches a pattern in [`Self::windows`].
   ///
   /// ## Example
   ///
@@ -175,13 +182,14 @@ pub struct Capability {
   ///
   /// ```json
   /// [
-  ///  "core:default",
-  ///  "shell:allow-open",
-  ///  "dialog:open",
-  ///  {
-  ///    "identifier": "fs:allow-write-text-file",
-  ///    "allow": [{ "path": "$HOME/test.txt" }]
-  ///  }
+  ///   "core:default",
+  ///   "shell:allow-open",
+  ///   "dialog:open",
+  ///   {
+  ///     "identifier": "fs:allow-write-text-file",
+  ///     "allow": [{ "path": "$HOME/test.txt" }]
+  ///   }
+  /// ]
   /// ```
   #[cfg_attr(feature = "schema", schemars(schema_with = "unique_permission"))]
   pub permissions: Vec<PermissionEntry>,
@@ -260,11 +268,14 @@ impl CapabilityFile {
   /// Load the given capability file.
   pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, super::Error> {
     let path = path.as_ref();
-    let capability_file = std::fs::read_to_string(path).map_err(super::Error::ReadFile)?;
+    let capability_file =
+      std::fs::read_to_string(path).map_err(|e| super::Error::ReadFile(e, path.into()))?;
     let ext = path.extension().unwrap().to_string_lossy().to_string();
     let file: Self = match ext.as_str() {
       "toml" => toml::from_str(&capability_file)?,
       "json" => serde_json::from_str(&capability_file)?,
+      #[cfg(feature = "config-json5")]
+      "json5" => json5::from_str(&capability_file)?,
       _ => return Err(super::Error::UnknownCapabilityFormat(ext)),
     };
     Ok(file)
@@ -439,7 +450,7 @@ mod tests {
       ))
       .unwrap(),
       CapabilityFile::NamedList {
-        capabilities: vec![capability.clone()]
+        capabilities: vec![capability]
       }
     );
   }

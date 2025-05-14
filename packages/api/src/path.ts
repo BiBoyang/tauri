@@ -17,30 +17,98 @@ import { invoke } from './core'
  * @since 2.0.0
  */
 enum BaseDirectory {
+  /**
+   * @see {@link audioDir} for more information.
+   */
   Audio = 1,
-  Cache,
-  Config,
-  Data,
-  LocalData,
-  Document,
-  Download,
-  Picture,
-  Public,
-  Video,
-  Resource,
-  Temp,
-  AppConfig,
-  AppData,
-  AppLocalData,
-  AppCache,
-  AppLog,
-
-  Desktop,
-  Executable,
-  Font,
-  Home,
-  Runtime,
-  Template
+  /**
+   * @see {@link cacheDir} for more information.
+   */
+  Cache = 2,
+  /**
+   * @see {@link configDir} for more information.
+   */
+  Config = 3,
+  /**
+   * @see {@link dataDir} for more information.
+   */
+  Data = 4,
+  /**
+   * @see {@link localDataDir} for more information.
+   */
+  LocalData = 5,
+  /**
+   * @see {@link documentDir} for more information.
+   */
+  Document = 6,
+  /**
+   * @see {@link downloadDir} for more information.
+   */
+  Download = 7,
+  /**
+   * @see {@link pictureDir} for more information.
+   */
+  Picture = 8,
+  /**
+   * @see {@link publicDir} for more information.
+   */
+  Public = 9,
+  /**
+   * @see {@link videoDir} for more information.
+   */
+  Video = 10,
+  /**
+   * @see {@link resourceDir} for more information.
+   */
+  Resource = 11,
+  /**
+   * @see {@link tempDir} for more information.
+   */
+  Temp = 12,
+  /**
+   * @see {@link appConfigDir} for more information.
+   */
+  AppConfig = 13,
+  /**
+   * @see {@link appDataDir} for more information.
+   */
+  AppData = 14,
+  /**
+   * @see {@link appLocalDataDir} for more information.
+   */
+  AppLocalData = 15,
+  /**
+   * @see {@link appCacheDir} for more information.
+   */
+  AppCache = 16,
+  /**
+   * @see {@link appLogDir} for more information.
+   */
+  AppLog = 17,
+  /**
+   * @see {@link desktopDir} for more information.
+   */
+  Desktop = 18,
+  /**
+   * @see {@link executableDir} for more information.
+   */
+  Executable = 19,
+  /**
+   * @see {@link fontDir} for more information.
+   */
+  Font = 20,
+  /**
+   * @see {@link homeDir} for more information.
+   */
+  Home = 21,
+  /**
+   * @see {@link runtimeDir} for more information.
+   */
+  Runtime = 22,
+  /**
+   * @see {@link templateDir} for more information.
+   */
+  Template = 23
 }
 
 /**
@@ -606,12 +674,12 @@ async function join(...paths: string[]): Promise<string> {
 }
 
 /**
- * Returns the directory name of a `path`. Trailing directory separators are ignored.
+ * Returns the parent directory of a given `path`. Trailing directory separators are ignored.
  * @example
  * ```typescript
  * import { dirname } from '@tauri-apps/api/path';
  * const dir = await dirname('/path/to/somedir/');
- * assert(dir === 'somedir');
+ * assert(dir === '/path/to');
  * ```
  *
  * @since 1.0.0
@@ -662,7 +730,7 @@ async function basename(path: string, ext?: string): Promise<string> {
  * @since 1.0.0
  */
 async function isAbsolute(path: string): Promise<boolean> {
-  return invoke('plugin:path|isAbsolute', { path })
+  return invoke('plugin:path|is_absolute', { path })
 }
 
 export {

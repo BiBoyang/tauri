@@ -84,10 +84,7 @@ pub fn migrate(frontend_dir: &Path) -> Result<Vec<String>> {
     )
   };
 
-  let pm = PackageManager::from_project(frontend_dir)
-    .into_iter()
-    .next()
-    .unwrap_or(PackageManager::Npm);
+  let pm = PackageManager::from_project(frontend_dir);
 
   for pkg in ["@tauri-apps/cli", "@tauri-apps/api"] {
     let version = pm
@@ -146,7 +143,7 @@ fn migrate_imports<'a>(
 
   let has_partial_js = path
     .extension()
-    .map_or(false, |ext| ext == "vue" || ext == "svelte");
+    .is_some_and(|ext| ext == "vue" || ext == "svelte");
 
   let sources = if !has_partial_js {
     vec![(SourceType::from_path(path).unwrap(), js_source, 0i64)]
@@ -538,13 +535,13 @@ function App() {
       <h1>Welcome to Tauri!</h1>
 
       <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
+        <a href="https://vite.dev" target="_blank">
           <img src="/vite.svg" className="logo vite" alt="Vite logo" />
         </a>
         <a href="https://tauri.app" target="_blank">
           <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
         </a>
-        <a href="https://reactjs.org" target="_blank">
+        <a href="https://react.dev" target="_blank">
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>
@@ -612,13 +609,13 @@ function App() {
       <h1>Welcome to Tauri!</h1>
 
       <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
+        <a href="https://vite.dev" target="_blank">
           <img src="/vite.svg" className="logo vite" alt="Vite logo" />
         </a>
         <a href="https://tauri.app" target="_blank">
           <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
         </a>
-        <a href="https://reactjs.org" target="_blank">
+        <a href="https://react.dev" target="_blank">
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>

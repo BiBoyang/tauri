@@ -30,11 +30,12 @@ use std::{
   collections::HashMap,
   env::{set_var, temp_dir},
   ffi::OsString,
-  fmt::Write,
+  fmt::{Display, Write},
   fs::{read_to_string, write},
-  net::{IpAddr, Ipv4Addr, SocketAddr},
+  net::{AddrParseError, IpAddr, Ipv4Addr, SocketAddr},
   path::PathBuf,
   process::{exit, ExitStatus},
+  str::FromStr,
   sync::{
     atomic::{AtomicBool, Ordering},
     Arc, OnceLock,
@@ -141,6 +142,44 @@ pub struct TargetDevice {
   name: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct DevHost(Option<Option<IpAddr>>);
+
+impl FromStr for DevHost {
+  type Err = AddrParseError;
+  fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    if s.is_empty() || s == "<public network address>" {
+      Ok(Self(Some(None)))
+    } else if s == "<none>" {
+      Ok(Self(None))
+    } else {
+      IpAddr::from_str(s).map(|addr| Self(Some(Some(addr))))
+    }
+  }
+}
+
+impl Display for DevHost {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self.0 {
+      Some(None) => write!(f, "<public network address>"),
+      Some(Some(addr)) => write!(f, "{addr}"),
+      None => write!(f, "<none>"),
+    }
+  }
+}
+
+impl Default for DevHost {
+  fn default() -> Self {
+    // on Windows we want to force using the public network address for the development server
+    // because the adb port forwarding does not work well
+    if cfg!(windows) {
+      Self(Some(None))
+    } else {
+      Self(None)
+    }
+  }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CliOptions {
   pub dev: bool,
@@ -148,7 +187,7 @@ pub struct CliOptions {
   pub args: Vec<String>,
   pub noise_level: NoiseLevel,
   pub vars: HashMap<String, OsString>,
-  pub config: Option<ConfigValue>,
+  pub config: Vec<ConfigValue>,
   pub target_device: Option<TargetDevice>,
 }
 
@@ -160,7 +199,7 @@ impl Default for CliOptions {
       args: vec!["--lib".into()],
       noise_level: Default::default(),
       vars: Default::default(),
-      config: None,
+      config: Vec::new(),
       target_device: None,
     }
   }
@@ -253,26 +292,21 @@ fn use_network_address_for_dev_url(
         url.path()
       ))?;
 
-      if let Some(c) = &mut dev_options.config {
-        if let Some(build) = c
-          .0
-          .as_object_mut()
-          .and_then(|root| root.get_mut("build"))
-          .and_then(|build| build.as_object_mut())
-        {
-          build.insert("devUrl".into(), url.to_string().into());
-        }
-      } else {
-        let mut build = serde_json::Map::new();
-        build.insert("devUrl".into(), url.to_string().into());
+      dev_options
+        .config
+        .push(crate::ConfigValue(serde_json::json!({
+          "build": {
+            "devUrl": url
+          }
+        })));
 
-        dev_options
+      reload_config(
+        &dev_options
           .config
-          .replace(crate::ConfigValue(serde_json::json!({
-            "build": build
-          })));
-      }
-      reload_config(dev_options.config.as_ref().map(|c| &c.0))?;
+          .iter()
+          .map(|conf| &conf.0)
+          .collect::<Vec<_>>(),
+      )?;
 
       Some(ip)
     } else {

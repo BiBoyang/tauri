@@ -15,7 +15,8 @@ use crate::{
   },
   interface::{AppInterface, Interface, MobileOptions, Options as InterfaceOptions},
   mobile::{
-    use_network_address_for_dev_url, write_options, CliOptions, DevChild, DevProcess, TargetDevice,
+    use_network_address_for_dev_url, write_options, CliOptions, DevChild, DevHost, DevProcess,
+    TargetDevice,
   },
   ConfigValue, Result,
 };
@@ -33,7 +34,7 @@ use cargo_mobile2::{
   target::TargetTrait,
 };
 
-use std::{env::set_current_dir, net::IpAddr};
+use std::env::set_current_dir;
 
 #[derive(Debug, Clone, Parser)]
 #[clap(
@@ -47,9 +48,15 @@ pub struct Options {
   /// Exit on panic
   #[clap(short, long)]
   exit_on_panic: bool,
-  /// JSON string or path to JSON file to merge with tauri.conf.json
+  /// JSON strings or paths to JSON, JSON5 or TOML files to merge with the default configuration file
+  ///
+  /// Configurations are merged in the order they are provided, which means a particular value overwrites previous values when a config key-value pair conflicts.
+  ///
+  /// Note that a platform-specific file is looked up and merged with the default file by default
+  /// (tauri.macos.conf.json, tauri.linux.conf.json, tauri.windows.conf.json, tauri.android.conf.json and tauri.ios.conf.json)
+  /// but you can use this for more specific use cases such as different build flavors.
   #[clap(short, long)]
-  pub config: Option<ConfigValue>,
+  pub config: Vec<ConfigValue>,
   /// Run the code in release mode
   #[clap(long = "release")]
   pub release_mode: bool,
@@ -70,6 +77,8 @@ pub struct Options {
   /// Use the public network address for the development server.
   /// If an actual address it provided, it is used instead of prompting to pick one.
   ///
+  /// On Windows we use the public network address by default.
+  ///
   /// This option is particularly useful along the `--open` flag when you intend on running on a physical device.
   ///
   /// This replaces the devUrl configuration value to match the public network address host,
@@ -79,8 +88,8 @@ pub struct Options {
   /// When this is set or when running on an iOS device the CLI sets the `TAURI_DEV_HOST`
   /// environment variable so you can check this on your framework's configuration to expose the development server
   /// on the public network address.
-  #[clap(long)]
-  pub host: Option<Option<IpAddr>>,
+  #[clap(long, default_value_t, default_missing_value(""), num_args(0..=1))]
+  pub host: DevHost,
   /// Disable the built-in dev server for static files.
   #[clap(long)]
   pub no_dev_server: bool,
@@ -103,7 +112,7 @@ impl From<Options> for DevOptions {
       no_dev_server: options.no_dev_server,
       port: options.port,
       release_mode: options.release_mode,
-      host: None,
+      host: options.host.0.unwrap_or_default(),
     }
   }
 }
@@ -123,7 +132,11 @@ fn run_command(options: Options, noise_level: NoiseLevel) -> Result<()> {
 
   let tauri_config = get_tauri_config(
     tauri_utils::platform::Target::Android,
-    options.config.as_ref().map(|c| &c.0),
+    &options
+      .config
+      .iter()
+      .map(|conf| &conf.0)
+      .collect::<Vec<_>>(),
   )?;
 
   let env = env()?;
@@ -144,7 +157,7 @@ fn run_command(options: Options, noise_level: NoiseLevel) -> Result<()> {
     .as_ref()
     .map(|d| d.target().triple.to_string())
     .unwrap_or_else(|| Target::all().values().next().unwrap().triple.into());
-  dev_options.target = Some(target_triple.clone());
+  dev_options.target = Some(target_triple);
 
   let (interface, config, metadata) = {
     let tauri_config_guard = tauri_config.lock().unwrap();
@@ -197,7 +210,7 @@ fn run_dev(
   noise_level: NoiseLevel,
 ) -> Result<()> {
   // when running on an actual device we must use the network IP
-  if options.host.is_some()
+  if options.host.0.is_some()
     || device
       .as_ref()
       .map(|device| !device.serial_no().starts_with("emulator"))

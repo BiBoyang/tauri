@@ -1,5 +1,56 @@
 # Changelog
 
+## \[2.2.0]
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.4.0`
+- Upgraded to `tauri-codegen@2.2.0`
+- [`48b12b440`](https://www.github.com/tauri-apps/tauri/commit/48b12b440478937c46fdfef9f9d95194be117020) Update to `tauri-utils@2.4.0`
+
+## \[2.1.1]
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.3.1`
+- Upgraded to `tauri-codegen@2.1.1`
+
+## \[2.1.0]
+
+### New Features
+
+- [`013f8f652`](https://www.github.com/tauri-apps/tauri/commit/013f8f652302f2d49c5ec0a075582033d8b074fb) ([#12890](https://www.github.com/tauri-apps/tauri/pull/12890) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Added `build > removeUnusedCommands` to trigger the build scripts and macros to remove unused commands based on the capabilities you defined. Note this won't be accounting for dynamically added ACLs so make sure to check it when using this.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.3.0`
+- Upgraded to `tauri-codegen@2.1.0`
+
+## \[2.0.5]
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.2.0`
+- Upgraded to `tauri-codegen@2.0.5`
+
+## \[2.0.4]
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.1.1`
+- Upgraded to `tauri-codegen@2.0.4`
+
+## \[2.0.3]
+
+### Enhancements
+
+- [`17c6952ae`](https://www.github.com/tauri-apps/tauri/commit/17c6952aec965fa41e6695ad68461a218afc20f1) ([#11522](https://www.github.com/tauri-apps/tauri/pull/11522) by [@amrbashir](https://www.github.com/tauri-apps/tauri/../../amrbashir)) Enhance the error message when using `async` commands with a reference.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.1.0`
+- Upgraded to `tauri-codegen@2.0.3`
+
 ## \[2.0.1]
 
 ### What's Changed

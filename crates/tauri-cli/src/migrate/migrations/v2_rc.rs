@@ -35,10 +35,7 @@ pub fn run() -> Result<()> {
 }
 
 fn migrate_npm_dependencies(frontend_dir: &Path) -> Result<()> {
-  let pm = PackageManager::from_project(frontend_dir)
-    .into_iter()
-    .next()
-    .unwrap_or(PackageManager::Npm);
+  let pm = PackageManager::from_project(frontend_dir);
 
   let mut install_deps = Vec::new();
   for pkg in [
@@ -102,7 +99,7 @@ fn migrate_permissions(tauri_dir: &Path) -> Result<()> {
   for entry in walkdir::WalkDir::new(tauri_dir.join("capabilities")) {
     let entry = entry?;
     let path = entry.path();
-    if path.extension().map_or(false, |ext| ext == "json") {
+    if path.extension().is_some_and(|ext| ext == "json") {
       let mut capability = read_to_string(path).context("failed to read capability")?;
       for plugin in core_plugins {
         capability = capability.replace(&format!("\"{plugin}:"), &format!("\"core:{plugin}:"));

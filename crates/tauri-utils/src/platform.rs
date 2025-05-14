@@ -191,6 +191,8 @@ pub fn target_triple() -> crate::Result<String> {
     "armv7"
   } else if cfg!(target_arch = "aarch64") {
     "aarch64"
+  } else if cfg!(target_arch = "riscv64") {
+    "riscv64"
   } else {
     return Err(crate::Error::Architecture);
   };
@@ -238,7 +240,7 @@ const CARGO_OUTPUT_DIRECTORIES: &[&str] = &["debug", "release", "custom-profile"
 fn is_cargo_output_directory(path: &std::path::Path) -> bool {
   let last_component = path
     .components()
-    .last()
+    .next_back()
     .unwrap()
     .as_os_str()
     .to_str()
@@ -309,12 +311,12 @@ fn resource_dir_from<P: AsRef<std::path::Path>>(
 
   #[cfg(target_os = "linux")]
   {
-    res = if curr_dir.ends_with("/data/usr/bin") {
-      // running from the deb bundle dir
-      exe_dir
-        .join(format!("../lib/{}", package_info.name))
-        .canonicalize()
-        .map_err(Into::into)
+    // (canonicalize checks for existence, so there's no need for an extra check)
+    res = if let Ok(bundle_dir) = exe_dir
+      .join(format!("../lib/{}", package_info.name))
+      .canonicalize()
+    {
+      Ok(bundle_dir)
     } else if let Some(appdir) = &env.appdir {
       let appdir: &std::path::Path = appdir.as_ref();
       Ok(PathBuf::from(format!(
@@ -396,6 +398,7 @@ mod tests {
     assert_eq!(resource_dir, path.parent().unwrap());
 
     let path = PathBuf::from("/path/to/target/unknown-profile/app");
+    #[allow(clippy::needless_borrows_for_generic_args)]
     let resource_dir = super::resource_dir_from(&path, &package_info, &env);
     #[cfg(target_os = "macos")]
     assert!(resource_dir.is_err());
