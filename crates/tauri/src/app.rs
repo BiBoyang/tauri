@@ -278,12 +278,11 @@ impl<R: Runtime> AssetResolver<R> {
   /// were configured with [`crate::webview::WebviewBuilder::use_https_scheme`] or `tauri.conf.json > app > windows > useHttpsScheme`.
   /// If you are resolving an asset for a webview with a more dynamic configuration, see [`AssetResolver::get_for_scheme`].
   ///
-  /// Resolves to the embedded asset that is part of the app
-  /// in dev when [`devUrl`](https://v2.tauri.app/reference/config/#devurl) points to a folder in your filesystem
-  /// or in production when [`frontendDist`](https://v2.tauri.app/reference/config/#frontenddist)
-  /// points to your frontend assets.
+  /// In production, this resolves to the embedded asset bundled in the app executable
+  /// which contains your frontend assets in [`frontendDist`](https://v2.tauri.app/reference/config/#frontenddist) during build time.
   ///
-  /// Fallbacks to reading the asset from the [distDir] folder so the behavior is consistent in development.
+  /// In dev mode, if [`devUrl`](https://v2.tauri.app/reference/config/#devurl) is set, we don't bundle the assets to reduce re-builds,
+  /// and this will fall back to read from `frontendDist` directly.
   /// Note that the dist directory must exist so you might need to build your frontend assets first.
   pub fn get(&self, path: String) -> Option<Asset> {
     let use_https_scheme = self
@@ -294,16 +293,15 @@ impl<R: Runtime> AssetResolver<R> {
     self.get_for_scheme(path, use_https_scheme)
   }
 
-  ///  Same as [AssetResolver::get] but resolves the custom protocol scheme based on a parameter.
+  ///  Same as [`AssetResolver::get`] but resolves the custom protocol scheme based on a parameter.
   ///
-  /// - `use_https_scheme`: If `true` when using [`Pattern::Isolation`](tauri::Pattern::Isolation),
+  /// - `use_https_scheme`: If `true` when using [`Pattern::Isolation`](crate::Pattern::Isolation),
   ///   the csp header will contain `https://tauri.localhost` instead of `http://tauri.localhost`
   pub fn get_for_scheme(&self, path: String, use_https_scheme: bool) -> Option<Asset> {
     #[cfg(dev)]
     {
-      // on dev if the devPath is a path to a directory we have the embedded assets
-      // so we can use get_asset() directly
-      // we only fallback to reading from distDir directly if we're using an external URL (which is likely)
+      // We don't bundle the assets when in dev mode and `devUrl` is set, so fall back to read from `frontendDist` directly
+      // TODO: Maybe handle `FrontendDist::Files` as well
       if let (Some(_), Some(crate::utils::config::FrontendDist::Directory(dist_path))) = (
         &self.manager.config().build.dev_url,
         &self.manager.config().build.frontend_dist,
@@ -386,7 +384,7 @@ impl AppHandle<crate::Wry> {
 
 #[cfg(target_vendor = "apple")]
 impl<R: Runtime> AppHandle<R> {
-  /// Fetches all Data Store Indentifiers by this app
+  /// Fetches all Data Store Identifiers by this app
   ///
   /// Needs to be called from Main Thread
   pub async fn fetch_data_store_identifiers(&self) -> crate::Result<Vec<[u8; 16]>> {
@@ -484,10 +482,16 @@ impl<R: Runtime> AppHandle<R> {
   ///     Ok(())
   ///   });
   /// ```
-  #[cfg_attr(feature = "tracing", tracing::instrument(name = "app::plugin::register", skip(plugin), fields(name = plugin.name())))]
   pub fn plugin<P: Plugin<R> + 'static>(&self, plugin: P) -> crate::Result<()> {
-    let mut plugin = Box::new(plugin) as Box<dyn Plugin<R>>;
+    self.plugin_boxed(Box::new(plugin))
+  }
 
+  /// Adds a Tauri application plugin.
+  ///
+  /// This method is similar to [`Self::plugin`],
+  /// but accepts a boxed trait object instead of a generic type.
+  #[cfg_attr(feature = "tracing", tracing::instrument(name = "app::plugin::register", skip(plugin), fields(name = plugin.name())))]
+  pub fn plugin_boxed(&self, mut plugin: Box<dyn Plugin<R>>) -> crate::Result<()> {
     let mut store = self.manager().plugins.lock().unwrap();
     store.initialize(&mut plugin, self, &self.config().plugins)?;
     store.register(plugin);
@@ -507,7 +511,7 @@ impl<R: Runtime> AppHandle<R> {
   /// }
   ///
   /// let plugin = init_plugin();
-  /// // `.name()` requires the `PLugin` trait import
+  /// // `.name()` requires the `Plugin` trait import
   /// let plugin_name = plugin.name();
   /// tauri::Builder::default()
   ///   .plugin(plugin)
@@ -520,7 +524,7 @@ impl<R: Runtime> AppHandle<R> {
   ///     Ok(())
   ///   });
   /// ```
-  pub fn remove_plugin(&self, plugin: &'static str) -> bool {
+  pub fn remove_plugin(&self, plugin: &str) -> bool {
     self.manager().plugins.lock().unwrap().unregister(plugin)
   }
 
@@ -616,6 +620,17 @@ impl<R: Runtime> AppHandle<R> {
       .runtime_handle
       .set_dock_visibility(visible)
       .map_err(Into::into)
+  }
+
+  /// Change the device event filter mode.
+  ///
+  /// See [App::set_device_event_filter] for details.
+  ///
+  /// ## Platform-specific
+  ///
+  /// See [App::set_device_event_filter] for details.
+  pub fn set_device_event_filter(&self, filter: DeviceEventFilter) {
+    self.runtime_handle.set_device_event_filter(filter);
   }
 }
 
@@ -824,7 +839,11 @@ macro_rules! shared_app_impl {
         })
       }
 
-      /// Set the app theme.
+      /// Sets the app theme.
+      ///
+      /// ## Platform-specific
+      ///
+      /// - **iOS / Android:** Unsupported.
       pub fn set_theme(&self, theme: Option<Theme>) {
         #[cfg(windows)]
         for window in self.manager.windows().values() {
@@ -1556,7 +1575,7 @@ impl<R: Runtime> Builder<R> {
 
   /// Append a custom initialization script.
   ///
-  /// Allow to append custom initialization script instend of replacing entire invoke system.
+  /// Allow to append custom initialization script instead of replacing entire invoke system.
   ///
   /// # Examples
   ///
@@ -1611,7 +1630,7 @@ impl<R: Runtime> Builder<R> {
 use tauri::Manager;
 tauri::Builder::default()
   .setup(|app| {
-    let main_window = app.get_window("main").unwrap();
+    let main_window = app.get_webview_window("main").unwrap();
     main_window.set_title("Tauri!")?;
     Ok(())
   });
@@ -1679,8 +1698,17 @@ tauri::Builder::default()
   ///   .plugin(plugin::init());
   /// ```
   #[must_use]
-  pub fn plugin<P: Plugin<R> + 'static>(mut self, plugin: P) -> Self {
-    self.plugins.register(Box::new(plugin));
+  pub fn plugin<P: Plugin<R> + 'static>(self, plugin: P) -> Self {
+    self.plugin_boxed(Box::new(plugin))
+  }
+
+  /// Adds a Tauri application plugin.
+  ///
+  /// This method is similar to [`Self::plugin`],
+  /// but accepts a boxed trait object instead of a generic type.
+  #[must_use]
+  pub fn plugin_boxed(mut self, plugin: Box<dyn Plugin<R>>) -> Self {
+    self.plugins.register(plugin);
     self
   }
 
@@ -1960,13 +1988,13 @@ tauri::Builder::default()
   >(
     mut self,
     uri_scheme: N,
-    protocol: H,
+    protocol_handler: H,
   ) -> Self {
     self.uri_scheme_protocols.insert(
       uri_scheme.into(),
       Arc::new(UriSchemeProtocol {
-        protocol: Box::new(move |ctx, request, responder| {
-          responder.respond(protocol(ctx, request))
+        handler: Box::new(move |ctx, request, responder| {
+          responder.respond(protocol_handler(ctx, request))
         }),
       }),
     );
@@ -2002,8 +2030,8 @@ tauri::Builder::default()
   ///             .body("failed to read file".as_bytes().to_vec())
   ///             .unwrap()
   ///         );
-  ///     }
-  ///   });
+  ///       }
+  ///     });
   ///   });
   /// ```
   ///
@@ -2024,12 +2052,12 @@ tauri::Builder::default()
   >(
     mut self,
     uri_scheme: N,
-    protocol: H,
+    protocol_handler: H,
   ) -> Self {
     self.uri_scheme_protocols.insert(
       uri_scheme.into(),
       Arc::new(UriSchemeProtocol {
-        protocol: Box::new(protocol),
+        handler: Box::new(protocol_handler),
       }),
     );
     self
@@ -2135,6 +2163,26 @@ tauri::Builder::default()
       },
     };
 
+    // The env var must be set before the Runtime is created so that GetAvailableBrowserVersionString picks it up.
+    #[cfg(windows)]
+    {
+      if let crate::utils::config::WebviewInstallMode::FixedRuntime { path } =
+        &manager.config.bundle.windows.webview_install_mode
+      {
+        if let Some(exe_dir) = crate::utils::platform::current_exe()
+          .ok()
+          .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        {
+          std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", exe_dir.join(path));
+        } else {
+          #[cfg(debug_assertions)]
+          eprintln!(
+            "failed to resolve resource directory; fallback to the installed Webview2 runtime."
+          );
+        }
+      }
+    }
+
     #[cfg(any(windows, target_os = "linux"))]
     let mut runtime = if self.runtime_any_thread {
       R::new_any_thread(runtime_args)?
@@ -2211,25 +2259,6 @@ tauri::Builder::default()
 
     app.manage(ChannelDataIpcQueue::default());
     app.handle.plugin(crate::ipc::channel::plugin())?;
-
-    #[cfg(windows)]
-    {
-      if let crate::utils::config::WebviewInstallMode::FixedRuntime { path } =
-        &app.manager.config().bundle.windows.webview_install_mode
-      {
-        if let Ok(resource_dir) = app.path().resource_dir() {
-          std::env::set_var(
-            "WEBVIEW2_BROWSER_EXECUTABLE_FOLDER",
-            resource_dir.join(path),
-          );
-        } else {
-          #[cfg(debug_assertions)]
-          eprintln!(
-            "failed to resolve resource directory; fallback to the installed Webview2 runtime."
-          );
-        }
-      }
-    }
 
     let handle = app.handle();
 

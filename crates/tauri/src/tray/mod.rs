@@ -19,18 +19,13 @@ use std::path::Path;
 pub use tray_icon::TrayIconId;
 
 /// Describes the mouse button state.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 pub enum MouseButtonState {
   /// Mouse button pressed.
+  #[default]
   Up,
   /// Mouse button released.
   Down,
-}
-
-impl Default for MouseButtonState {
-  fn default() -> Self {
-    Self::Up
-  }
 }
 
 impl From<tray_icon::MouseButtonState> for MouseButtonState {
@@ -43,20 +38,15 @@ impl From<tray_icon::MouseButtonState> for MouseButtonState {
 }
 
 /// Describes which mouse button triggered the event..
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Default)]
 pub enum MouseButton {
   /// Left mouse button.
+  #[default]
   Left,
   /// Right mouse button.
   Right,
   /// Middle mouse button.
   Middle,
-}
-
-impl Default for MouseButton {
-  fn default() -> Self {
-    Self::Left
-  }
 }
 
 impl From<tray_icon::MouseButton> for MouseButton {
@@ -73,7 +63,7 @@ impl From<tray_icon::MouseButton> for MouseButton {
 ///
 /// ## Platform-specific:
 ///
-/// - **Linux**: Unsupported. The event is not emmited even though the icon is shown
+/// - **Linux**: Unsupported. The event is not emitted even though the icon is shown
 ///   and will still show a context menu on right click.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
@@ -314,7 +304,7 @@ impl<R: Runtime> TrayIconBuilder<R> {
   /// - **Linux:** Unsupported.
   #[deprecated(
     since = "2.2.0",
-    note = "Use `TrayIconBuiler::show_menu_on_left_click` instead."
+    note = "Use `TrayIconBuilder::show_menu_on_left_click` instead."
   )]
   pub fn menu_on_left_click(mut self, enable: bool) -> Self {
     self.inner = self.inner.with_menu_on_left_click(enable);
@@ -602,6 +592,18 @@ impl<R: Runtime> TrayIcon<R> {
         size: rect.size.into(),
       })
     })
+  }
+
+  /// Do something with the inner [`tray_icon::TrayIcon`] on main thread
+  ///
+  /// Note that `tray-icon` crate may be updated in minor releases of Tauri.
+  /// Therefore, it’s recommended to pin Tauri to at least a minor version when you’re using `with_inner_tray_icon`.
+  pub fn with_inner_tray_icon<F, T>(&self, f: F) -> crate::Result<T>
+  where
+    F: FnOnce(&tray_icon::TrayIcon) -> T + Send + 'static,
+    T: Send + 'static,
+  {
+    run_item_main_thread!(self, |self_: Self| { f(&self_.inner) })
   }
 }
 

@@ -32,7 +32,7 @@ pub fn get<R: Runtime>(
   #[cfg(all(dev, mobile))]
   let url = {
     let mut url = manager
-      .get_url(window_origin.starts_with("https"))
+      .get_app_url(window_origin.starts_with("https"))
       .as_str()
       .to_string();
     if url.ends_with('/') {
@@ -69,7 +69,7 @@ pub fn get<R: Runtime>(
 }
 
 fn get_response<R: Runtime>(
-  request: Request<Vec<u8>>,
+  #[allow(unused_mut)] mut request: Request<Vec<u8>>,
   #[allow(unused_variables)] manager: &AppManager<R>,
   window_origin: &str,
   web_resource_request_handler: Option<&WebResourceRequestHandler>,
@@ -95,9 +95,9 @@ fn get_response<R: Runtime>(
   let path = path
     .strip_prefix("tauri://localhost")
     .map(|p| p.to_string())
-    // the `strip_prefix` only returns None when a request is made to `https://tauri.$P` on Windows
+    // the `strip_prefix` only returns None when a request is made to `https://tauri.$P` on Windows and Android
     // where `$P` is not `localhost/*`
-    .unwrap_or_else(|| "".to_string());
+    .unwrap_or_default();
 
   let mut builder = HttpResponse::builder()
     .add_configured_headers(manager.config.app.security.headers.as_ref())
@@ -114,13 +114,54 @@ fn get_response<R: Runtime>(
       decoded_path.trim_start_matches('/')
     );
 
-    let mut proxy_builder = reqwest::ClientBuilder::new()
+    #[cfg(feature = "rustls-tls")]
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+      let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+
+    let mut client = reqwest::ClientBuilder::new();
+
+    if url.starts_with("https://") {
+      // we can't load env vars at runtime, gotta embed them in the lib
+      if let Some(cert_pem) = option_env!("TAURI_DEV_ROOT_CERTIFICATE") {
+        #[cfg(any(
+          feature = "native-tls",
+          feature = "native-tls-vendored",
+          feature = "rustls-tls"
+        ))]
+        {
+          log::info!("adding dev server root certificate");
+          let certificate = reqwest::Certificate::from_pem(cert_pem.as_bytes())
+            .expect("failed to parse TAURI_DEV_ROOT_CERTIFICATE");
+          client = client.tls_certs_merge([certificate]);
+        }
+
+        #[cfg(not(any(
+          feature = "native-tls",
+          feature = "native-tls-vendored",
+          feature = "rustls-tls"
+        )))]
+        {
+          log::warn!(
+            "the dev root-certificate-path option was provided, but you must enable one of the following Tauri features in Cargo.toml: native-tls, native-tls-vendored, rustls-tls"
+          );
+        }
+      } else {
+        log::warn!(
+          "loading HTTPS URL; you might need to provide a certificate via the `dev --root-certificate-path` option. You must enable one of the following Tauri features in Cargo.toml: native-tls, native-tls-vendored, rustls-tls"
+        );
+      }
+    }
+
+    let mut proxy_builder = client
       .build()
       .unwrap()
       .request(request.method().clone(), &url);
+    proxy_builder = proxy_builder.body(std::mem::take(request.body_mut()));
     for (name, value) in request.headers() {
       proxy_builder = proxy_builder.header(name, value);
     }
+    proxy_builder = proxy_builder.body(request.body().clone());
     match crate::async_runtime::safe_block_on(proxy_builder.send()) {
       Ok(r) => {
         let mut response_cache_ = response_cache.lock().unwrap();
@@ -150,8 +191,20 @@ fn get_response<R: Runtime>(
           .body(response.body.to_vec().into())?
       }
       Err(e) => {
-        log::error!("Failed to request {}: {}", url.as_str(), e);
-        return Err(Box::new(e));
+        let error_message = format!(
+          "Failed to request {}: {}{}",
+          url.as_str(),
+          e,
+          if let Some(s) = e.status() {
+            format!("status code: {}", s.as_u16())
+          } else if cfg!(target_os = "ios") {
+            ", did you grant local network permissions? That is required to reach the development server. Please grant the permission via the prompt or in `Settings > Privacy & Security > Local Network` and restart the app. See https://support.apple.com/en-us/102229 for more information.".to_string()
+          } else {
+            "".to_string()
+          }
+        );
+        log::error!("{error_message}");
+        return Err(error_message.into());
       }
     }
   };

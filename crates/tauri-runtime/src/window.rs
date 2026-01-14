@@ -247,19 +247,19 @@ pub trait WindowBuilder: WindowBuilderBase {
   #[must_use]
   fn center(self) -> Self;
 
-  /// The initial position of the window's.
+  /// The initial position of the window in logical pixels.
   #[must_use]
   fn position(self, x: f64, y: f64) -> Self;
 
-  /// Window size.
+  /// Window size in logical pixels.
   #[must_use]
   fn inner_size(self, width: f64, height: f64) -> Self;
 
-  /// Window min inner size.
+  /// Window min inner size in logical pixels.
   #[must_use]
   fn min_inner_size(self, min_width: f64, min_height: f64) -> Self;
 
-  /// Window max inner size.
+  /// Window max inner size in logical pixels.
   #[must_use]
   fn max_inner_size(self, max_width: f64, max_height: f64) -> Self;
 
@@ -328,6 +328,10 @@ pub trait WindowBuilder: WindowBuilderBase {
   /// Whether the window will be initially focused or not.
   #[must_use]
   fn focused(self, focused: bool) -> Self;
+
+  /// Whether the window will be focusable or not.
+  #[must_use]
+  fn focusable(self, focusable: bool) -> Self;
 
   /// Whether the window should be maximized upon creation.
   #[must_use]

@@ -1,5 +1,57 @@
 # Changelog
 
+## \[2.9.2]
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.8.1`
+
+## \[2.9.1]
+
+### Bug Fixes
+
+- [`4b6b8690a`](https://www.github.com/tauri-apps/tauri/commit/4b6b8690ab886ebdf1307951cffbe03e31280baa) ([#14347](https://www.github.com/tauri-apps/tauri/pull/14347) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Fixed an issue that caused docs.rs builds to fail. No user facing changes.
+
+## \[2.9.0]
+
+### New Features
+
+- [`f5851ee00`](https://www.github.com/tauri-apps/tauri/commit/f5851ee00d6d1f4d560a220ca5a728fedd525092) ([#14089](https://www.github.com/tauri-apps/tauri/pull/14089)) Adds the `scroll_bar_style` option to the Webview and WebviewWindow builders.
+  The possible values for this option are gated behind conditional compilation
+  flags, and will need to be applied using conditional compilation if customised.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.8.0`
+
+## \[2.8.0]
+
+### New Features
+
+- [`68874c68c`](https://www.github.com/tauri-apps/tauri/commit/68874c68c566638b4c21a3aa67844d1bdaeb6dab) ([#13564](https://www.github.com/tauri-apps/tauri/pull/13564) by [@robertrpf](https://www.github.com/tauri-apps/tauri/../../robertrpf)) Add window focusable attribute and set_focusable API.
+- [`22d6bcacb`](https://www.github.com/tauri-apps/tauri/commit/22d6bcacbb2001eb292ebd8c5d021447700f9512) ([#14008](https://www.github.com/tauri-apps/tauri/pull/14008) by [@WSH032](https://www.github.com/tauri-apps/tauri/../../WSH032)) Implement `App::set_device_event_filter` for `AppHandle` also.
+- [`33d0b3f0c`](https://www.github.com/tauri-apps/tauri/commit/33d0b3f0c133edebb1c716e2f5942d70509ae347) ([#13876](https://www.github.com/tauri-apps/tauri/pull/13876) by [@thlstsul](https://www.github.com/tauri-apps/tauri/../../thlstsul)) Added `WebviewBuilder::on_document_title_changed` and `WebviewWindowBuilder::on_document_title_changed`.
+- [`33d0b3f0c`](https://www.github.com/tauri-apps/tauri/commit/33d0b3f0c133edebb1c716e2f5942d70509ae347) ([#13876](https://www.github.com/tauri-apps/tauri/pull/13876) by [@thlstsul](https://www.github.com/tauri-apps/tauri/../../thlstsul)) Added `WebviewBuilder::on_new_window` and `WebviewWindowBuilder::on_new_window`.
+- [`dfadcb764`](https://www.github.com/tauri-apps/tauri/commit/dfadcb764bdf84089a5487005a7b4f3b7cf09494) ([#13661](https://www.github.com/tauri-apps/tauri/pull/13661) by [@WSH032](https://www.github.com/tauri-apps/tauri/../../WSH032)) Added `WebviewDispatch::set_cookie()` and `WebviewDispatch::delete_cookie()`.
+- [`5110a762e`](https://www.github.com/tauri-apps/tauri/commit/5110a762e9db978a28a15400bf76e3c864da2a86) ([#13830](https://www.github.com/tauri-apps/tauri/pull/13830) by [@Sky-walkerX](https://www.github.com/tauri-apps/tauri/../../Sky-walkerX)) Added `Window::set_simple_fullscreen`.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.7.0`
+
+## \[2.7.1]
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.6.0`
+
+## \[2.7.0]
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.5.0`
+- [`9c16eefa3`](https://www.github.com/tauri-apps/tauri/commit/9c16eefa319b4697bac1d1019bbb5f93eca63173) ([#13629](https://www.github.com/tauri-apps/tauri/pull/13629)) Update html5ever to 0.29 and kuchikiki to version 0.8.8-speedreader.
+
 ## \[2.6.0]
 
 ### New Features

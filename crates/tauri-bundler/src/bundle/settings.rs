@@ -4,8 +4,7 @@
 // SPDX-License-Identifier: MIT
 
 use super::category::AppCategory;
-use crate::{bundle::platform::target_triple, utils::fs_utils};
-use anyhow::Context;
+use crate::{bundle::platform::target_triple, error::Context, utils::fs_utils};
 pub use tauri_utils::config::WebviewInstallMode;
 use tauri_utils::{
   config::{
@@ -333,6 +332,10 @@ pub struct MacOsSettings {
   pub files: HashMap<PathBuf, PathBuf>,
   /// The version of the build that identifies an iteration of the bundle.
   pub bundle_version: Option<String>,
+  /// The name of the build that identifies a string of the bundle.
+  ///
+  /// If not set, defaults to the package's product name.
+  pub bundle_name: Option<String>,
   /// A version string indicating the minimum MacOS version that the bundled app supports (e.g. `"10.11"`).
   /// If you are using this config field, you may also want have your `build.rs` script emit `cargo:rustc-env=MACOSX_DEPLOYMENT_TARGET=10.11`.
   pub minimum_system_version: Option<String>,
@@ -342,16 +345,43 @@ pub struct MacOsSettings {
   pub exception_domain: Option<String>,
   /// Code signing identity.
   pub signing_identity: Option<String>,
+  /// Whether to wait for notarization to finish and `staple` the ticket onto the app.
+  ///
+  /// Gatekeeper will look for stapled tickets to tell whether your app was notarized without
+  /// reaching out to Apple's servers which is helpful in offline environments.
+  ///
+  /// Enabling this option will also result in `tauri build` not waiting for notarization to finish
+  /// which is helpful for the very first time your app is notarized as this can take multiple hours.
+  /// On subsequent runs, it's recommended to disable this setting again.
+  pub skip_stapling: bool,
   /// Preserve the hardened runtime version flag, see <https://developer.apple.com/documentation/security/hardened_runtime>
   ///
   /// Settings this to `false` is useful when using an ad-hoc signature, making it less strict.
   pub hardened_runtime: bool,
   /// Provider short name for notarization.
   pub provider_short_name: Option<String>,
+  /// Path or contents of the entitlements.plist file.
+  pub entitlements: Option<Entitlements>,
+  /// Path to the Info.plist file or raw plist value to merge with the bundle Info.plist.
+  pub info_plist: Option<PlistKind>,
+}
+
+/// Entitlements for macOS code signing.
+#[derive(Debug, Clone)]
+pub enum Entitlements {
   /// Path to the entitlements.plist file.
-  pub entitlements: Option<String>,
-  /// Path to the Info.plist file for the bundle.
-  pub info_plist_path: Option<PathBuf>,
+  Path(PathBuf),
+  /// Raw plist::Value.
+  Plist(plist::Value),
+}
+
+/// Plist format.
+#[derive(Debug, Clone)]
+pub enum PlistKind {
+  /// Path to a .plist file.
+  Path(PathBuf),
+  /// Raw plist value.
+  Plist(plist::Value),
 }
 
 /// Configuration for a target language for the WiX build.
@@ -557,6 +587,12 @@ pub struct WindowsSettings {
   /// if you are on another platform and want to cross-compile and sign you will
   /// need to use another tool like `osslsigncode`.
   pub sign_command: Option<CustomSignCommandSettings>,
+}
+
+impl WindowsSettings {
+  pub(crate) fn can_sign(&self) -> bool {
+    self.sign_command.is_some() || self.certificate_thumbprint.is_some()
+  }
 }
 
 #[allow(deprecated)]
@@ -765,6 +801,8 @@ pub struct Settings {
   target_platform: TargetPlatform,
   /// The target triple.
   target: String,
+  /// Whether to disable code signing during the bundling process.
+  no_sign: bool,
 }
 
 /// A builder for [`Settings`].
@@ -778,6 +816,7 @@ pub struct SettingsBuilder {
   binaries: Vec<BundleBinary>,
   target: Option<String>,
   local_tools_directory: Option<PathBuf>,
+  no_sign: bool,
 }
 
 impl SettingsBuilder {
@@ -847,6 +886,13 @@ impl SettingsBuilder {
     self
   }
 
+  /// Sets whether to skip code signing.
+  #[must_use]
+  pub fn no_sign(mut self, no_sign: bool) -> Self {
+    self.no_sign = no_sign;
+    self
+  }
+
   /// Builds a Settings from the CLI args.
   ///
   /// Package settings will be read from Cargo.toml.
@@ -881,6 +927,7 @@ impl SettingsBuilder {
       },
       target_platform,
       target,
+      no_sign: self.no_sign,
     })
   }
 }
@@ -939,7 +986,6 @@ impl Settings {
       .iter()
       .find(|bin| bin.main)
       .context("failed to find main binary, make sure you have a `package > default-run` in the Cargo.toml file")
-      .map_err(Into::into)
   }
 
   /// Returns the file name of the binary being bundled.
@@ -949,7 +995,6 @@ impl Settings {
       .iter_mut()
       .find(|bin| bin.main)
       .context("failed to find main binary, make sure you have a `package > default-run` in the Cargo.toml file")
-      .map_err(Into::into)
   }
 
   /// Returns the file name of the binary being bundled.
@@ -960,7 +1005,6 @@ impl Settings {
       .find(|bin| bin.main)
       .context("failed to find main binary, make sure you have a `package > default-run` in the Cargo.toml file")
       .map(|b| b.name())
-      .map_err(Into::into)
   }
 
   /// Returns the path to the specified binary.
@@ -1228,5 +1272,15 @@ impl Settings {
   /// Returns the Updater settings.
   pub fn updater(&self) -> Option<&UpdaterSettings> {
     self.bundle_settings.updater.as_ref()
+  }
+
+  /// Whether to skip signing.
+  pub fn no_sign(&self) -> bool {
+    self.no_sign
+  }
+
+  /// Set whether to skip signing.
+  pub fn set_no_sign(&mut self, no_sign: bool) {
+    self.no_sign = no_sign;
   }
 }

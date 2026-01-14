@@ -406,14 +406,14 @@ tauri::Builder::default()
       window.on_menu_event(handler);
     }
 
-    if let Some(effects) = self.window_effects {
-      crate::vibrancy::set_window_effects(&window, Some(effects))?;
-    }
-
     let app_manager = self.manager.manager_owned();
     let window_label = window.label().to_string();
+    let window_ = window.clone();
     // run on the main thread to fix a deadlock on webview.eval if the tracing feature is enabled
     let _ = window.run_on_main_thread(move || {
+      if let Some(effects) = self.window_effects {
+        _ = crate::vibrancy::set_window_effects(&window_, Some(effects));
+      }
       let event = crate::EventName::from_str("tauri://window-created");
       let payload = Some(crate::webview::CreatedEvent {
         label: window_label,
@@ -443,28 +443,28 @@ impl<'a, R: Runtime, M: Manager<R>> WindowBuilder<'a, R, M> {
     self
   }
 
-  /// The initial position of the window's.
+  /// The initial position of the window in logical pixels.
   #[must_use]
   pub fn position(mut self, x: f64, y: f64) -> Self {
     self.window_builder = self.window_builder.position(x, y);
     self
   }
 
-  /// Window size.
+  /// Window size in logical pixels.
   #[must_use]
   pub fn inner_size(mut self, width: f64, height: f64) -> Self {
     self.window_builder = self.window_builder.inner_size(width, height);
     self
   }
 
-  /// Window min inner size.
+  /// Window min inner size in logical pixels.
   #[must_use]
   pub fn min_inner_size(mut self, min_width: f64, min_height: f64) -> Self {
     self.window_builder = self.window_builder.min_inner_size(min_width, min_height);
     self
   }
 
-  /// Window max inner size.
+  /// Window max inner size in logical pixels.
   #[must_use]
   pub fn max_inner_size(mut self, max_width: f64, max_height: f64) -> Self {
     self.window_builder = self.window_builder.max_inner_size(max_width, max_height);
@@ -585,6 +585,13 @@ impl<'a, R: Runtime, M: Manager<R>> WindowBuilder<'a, R, M> {
   #[must_use]
   pub fn focused(mut self, focused: bool) -> Self {
     self.window_builder = self.window_builder.focused(focused);
+    self
+  }
+
+  /// Whether the window will be focusable or not.
+  #[must_use]
+  pub fn focusable(mut self, focusable: bool) -> Self {
+    self.window_builder = self.window_builder.focusable(focusable);
     self
   }
 
@@ -1934,12 +1941,12 @@ tauri::Builder::default()
   /// Sets this window's minimum inner width.
   pub fn set_size_constraints(
     &self,
-    constriants: tauri_runtime::window::WindowSizeConstraints,
+    constraints: tauri_runtime::window::WindowSizeConstraints,
   ) -> crate::Result<()> {
     self
       .window
       .dispatcher
-      .set_size_constraints(constriants)
+      .set_size_constraints(constraints)
       .map_err(Into::into)
   }
 
@@ -1961,9 +1968,44 @@ tauri::Builder::default()
       .map_err(Into::into)
   }
 
+  /// Toggles a fullscreen mode that doesn’t require a new macOS space. Returns a boolean indicating whether the transition was successful (this won’t work if the window was already in the native fullscreen).
+  ///
+  /// This is how fullscreen used to work on macOS in versions before Lion. And allows the user to have a fullscreen window without using another space or taking control over the entire monitor.
+  #[cfg(target_os = "macos")]
+  pub fn set_simple_fullscreen(&self, enable: bool) -> crate::Result<()> {
+    self
+      .window
+      .dispatcher
+      .set_simple_fullscreen(enable)
+      .map_err(Into::into)
+  }
+
+  /// On macOS, Toggles a fullscreen mode that doesn’t require a new macOS space. Returns a boolean indicating whether the transition was successful (this won’t work if the window was already in the native fullscreen).
+  /// This is how fullscreen used to work on macOS in versions before Lion. And allows the user to have a fullscreen window without using another space or taking control over the entire monitor.
+  ///
+  /// On other platforms, this is the same as [`Window#method.set_fullscreen`].
+  #[cfg(not(target_os = "macos"))]
+  pub fn set_simple_fullscreen(&self, fullscreen: bool) -> crate::Result<()> {
+    self.set_fullscreen(fullscreen)
+  }
+
   /// Bring the window to front and focus.
   pub fn set_focus(&self) -> crate::Result<()> {
     self.window.dispatcher.set_focus().map_err(Into::into)
+  }
+
+  /// Sets whether the window can be focused.
+  ///
+  /// ## Platform-specific
+  ///
+  /// - **macOS**: If the window is already focused, it is not possible to unfocus it after calling `set_focusable(false)`.
+  ///   In this case, you might consider calling [`Window::set_focus`] but it will move the window to the back i.e. at the bottom in terms of z-order.
+  pub fn set_focusable(&self, focusable: bool) -> crate::Result<()> {
+    self
+      .window
+      .dispatcher
+      .set_focusable(focusable)
+      .map_err(Into::into)
   }
 
   /// Sets this window' icon.

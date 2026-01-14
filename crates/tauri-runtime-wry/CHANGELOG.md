@@ -1,5 +1,112 @@
 # Changelog
 
+## \[2.9.3]
+
+### Bug Fixes
+
+- [`251203b89`](https://www.github.com/tauri-apps/tauri/commit/251203b8963419cb3b40741767393e8f3c909ef9) ([#14637](https://www.github.com/tauri-apps/tauri/pull/14637) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Fix `Monitor::work_area` returns logical position and size inside the `PhysicalRect` on Linux
+
+## \[2.9.2]
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.8.1`
+- Upgraded to `tauri-runtime@2.9.2`
+
+## \[2.9.1]
+
+### Bug Fixes
+
+- [`4b6b8690a`](https://www.github.com/tauri-apps/tauri/commit/4b6b8690ab886ebdf1307951cffbe03e31280baa) ([#14347](https://www.github.com/tauri-apps/tauri/pull/14347) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Fixed an issue that caused docs.rs builds to fail. No user facing changes.
+
+### Dependencies
+
+- Upgraded to `tauri-runtime@2.9.1`
+
+## \[2.9.0]
+
+### New Features
+
+- [`f5851ee00`](https://www.github.com/tauri-apps/tauri/commit/f5851ee00d6d1f4d560a220ca5a728fedd525092) ([#14089](https://www.github.com/tauri-apps/tauri/pull/14089)) Adds the `scroll_bar_style` option to the Webview and WebviewWindow builders.
+  The possible values for this option are gated behind conditional compilation
+  flags, and will need to be applied using conditional compilation if customised.
+
+### Bug Fixes
+
+- [`684791efa`](https://www.github.com/tauri-apps/tauri/commit/684791efa6f3c671a0435d456ac208bca871d8c1) ([#14276](https://www.github.com/tauri-apps/tauri/pull/14276)) Always try to create macOS WebKit webview, even if webkit runtime doesn't get detected correctly
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.8.0`
+- Upgraded to `tauri-runtime@2.9.0`
+
+## \[2.8.1]
+
+### Bug Fixes
+
+- [`03e7c1193`](https://www.github.com/tauri-apps/tauri/commit/03e7c1193208716170f120a1d4a39cea0bc21064) ([#14080](https://www.github.com/tauri-apps/tauri/pull/14080) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Ignore initial navigation to `about:blank` so `on_new_window` does not give a warning on first navigation on macOS.
+
+## \[2.8.0]
+
+### New Features
+
+- [`68874c68c`](https://www.github.com/tauri-apps/tauri/commit/68874c68c566638b4c21a3aa67844d1bdaeb6dab) ([#13564](https://www.github.com/tauri-apps/tauri/pull/13564) by [@robertrpf](https://www.github.com/tauri-apps/tauri/../../robertrpf)) Add window focusable attribute and set_focusable API.
+- [`22d6bcacb`](https://www.github.com/tauri-apps/tauri/commit/22d6bcacbb2001eb292ebd8c5d021447700f9512) ([#14008](https://www.github.com/tauri-apps/tauri/pull/14008) by [@WSH032](https://www.github.com/tauri-apps/tauri/../../WSH032)) Implement `App::set_device_event_filter` for `AppHandle` also.
+- [`33d0b3f0c`](https://www.github.com/tauri-apps/tauri/commit/33d0b3f0c133edebb1c716e2f5942d70509ae347) ([#13876](https://www.github.com/tauri-apps/tauri/pull/13876) by [@thlstsul](https://www.github.com/tauri-apps/tauri/../../thlstsul)) Added `WebviewBuilder::on_document_title_changed` and `WebviewWindowBuilder::on_document_title_changed`.
+- [`33d0b3f0c`](https://www.github.com/tauri-apps/tauri/commit/33d0b3f0c133edebb1c716e2f5942d70509ae347) ([#13876](https://www.github.com/tauri-apps/tauri/pull/13876) by [@thlstsul](https://www.github.com/tauri-apps/tauri/../../thlstsul)) Added `WebviewBuilder::on_new_window` and `WebviewWindowBuilder::on_new_window`.
+- [`dfadcb764`](https://www.github.com/tauri-apps/tauri/commit/dfadcb764bdf84089a5487005a7b4f3b7cf09494) ([#13661](https://www.github.com/tauri-apps/tauri/pull/13661) by [@WSH032](https://www.github.com/tauri-apps/tauri/../../WSH032)) Added `WebviewDispatch::set_cookie()` and `WebviewDispatch::delete_cookie()`.
+- [`5110a762e`](https://www.github.com/tauri-apps/tauri/commit/5110a762e9db978a28a15400bf76e3c864da2a86) ([#13830](https://www.github.com/tauri-apps/tauri/pull/13830) by [@Sky-walkerX](https://www.github.com/tauri-apps/tauri/../../Sky-walkerX)) Added `Window::set_simple_fullscreen`.
+
+### Bug Fixes
+
+- [`82e264552`](https://www.github.com/tauri-apps/tauri/commit/82e264552ed3e1d62135edc5803a2c5d92f9c5c7) ([#13968](https://www.github.com/tauri-apps/tauri/pull/13968) by [@s5bug](https://www.github.com/tauri-apps/tauri/../../s5bug)) Use WM_NCDESTROY instead of WM_DESTROY to free window userdata, fixing a double-free occurring in the Windows resizing handler for undecorated windows which caused STATUS_HEAP_CORRUPTION
+- [`196ace3c0`](https://www.github.com/tauri-apps/tauri/commit/196ace3c048f81b20ab4d38f09c2f200978722b8) ([#13970](https://www.github.com/tauri-apps/tauri/pull/13970) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Return `tauri_runtime::Error::CreateWindow` instead of panic on window creation failed
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.7.0`
+- Upgraded to `tauri-runtime@2.8.0`
+
+## \[2.7.2]
+
+### What's Changed
+
+- [`3025d9095`](https://www.github.com/tauri-apps/tauri/commit/3025d90951bfa152fc6f4255ac5a3fdd0f6353ca) ([#13822](https://www.github.com/tauri-apps/tauri/pull/13822) by [@clearlysid](https://www.github.com/tauri-apps/tauri/../../clearlysid)) Makes some methods on `WindowIdStore`, `WindowsStore` and `WindowWrapper` public
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.6.0`
+- Upgraded to `tauri-runtime@2.7.1`
+
+## \[2.7.1]
+
+### Bug Fixes
+
+- [`f010ca5e9`](https://www.github.com/tauri-apps/tauri/commit/f010ca5e9199e6baae65990ab75a83ea29e4fe18) ([#13719](https://www.github.com/tauri-apps/tauri/pull/13719) by [@FabianLars](https://www.github.com/tauri-apps/tauri/../../FabianLars)) Fixed a compile error when using tauri without the `common-controls-v6` feature enabled.
+
+## \[2.7.0]
+
+### New Features
+
+- [`9c16eefa3`](https://www.github.com/tauri-apps/tauri/commit/9c16eefa319b4697bac1d1019bbb5f93eca63173) ([#13629](https://www.github.com/tauri-apps/tauri/pull/13629) by [@sftse](https://www.github.com/tauri-apps/tauri/../../sftse)) Added `x11` Cargo feature (enabled by default). Disabling it is useful for apps that only support Wayland, reducing its size.
+  **NOTE**: When manually disabling tauri default features, you must enable the `x11` feature to support it.
+
+### Enhancements
+
+- [`96ecfca42`](https://www.github.com/tauri-apps/tauri/commit/96ecfca428e4e5d9ff5d5eeed3f94a06a466ed02) ([#13406](https://www.github.com/tauri-apps/tauri/pull/13406) by [@amrbashir](https://www.github.com/tauri-apps/tauri/../../amrbashir)) Check if the webview runtime is accessible when creating a webview, returning an error if it doesn't.
+
+### Bug Fixes
+
+- [`f0662e41f`](https://www.github.com/tauri-apps/tauri/commit/f0662e41f4f78ec5a3f88aa76a7367d37d740291) ([#13365](https://www.github.com/tauri-apps/tauri/pull/13365) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Fix monitor check on the window prevent overflow implementation.
+- [`4acae1ec0`](https://www.github.com/tauri-apps/tauri/commit/4acae1ec02f2e0b0501d6b79b0bb862893296abd) ([#13443](https://www.github.com/tauri-apps/tauri/pull/13443) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Fix `AppHandle::set_theme` crashes or has no effect on macOS if not ran on main thread
+- [`78d15e892`](https://www.github.com/tauri-apps/tauri/commit/78d15e892d30fb3f8494f0c00685fb455740a181) ([#13558](https://www.github.com/tauri-apps/tauri/pull/13558) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Allow web fullscreen APIs to work on Windows (e.g. `video.requestFullscreen` and `document.exitFullscreen`)
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.5.0`
+- Upgraded to `tauri-runtime@2.7.0`
+- [`9c16eefa3`](https://www.github.com/tauri-apps/tauri/commit/9c16eefa319b4697bac1d1019bbb5f93eca63173) ([#13629](https://www.github.com/tauri-apps/tauri/pull/13629) by [@sftse](https://www.github.com/tauri-apps/tauri/../../sftse)) Updated tao to 0.34, wry to 0.52 and webview2-com to 0.38.
+
 ## \[2.6.0]
 
 ### New Features
